@@ -1,6 +1,8 @@
-from odoo import fields, models
+from odoo import fields, models, tools
 from odoo.exceptions import UserError
 import base64
+from lxml import etree
+from lxml.objectify import fromstring
 
 class AccountMove(models.Model):
     _inherit = 'account.move'
@@ -36,29 +38,91 @@ class AccountMove(models.Model):
        
         self.env['ir.attachment'].sudo().create(ir_values)
 
-"""    def create_edi_document_from_attatchment(self):
-        self.write({
-            'state': 'posted',
-            'posted_before': True,
-        })
-        posted = self
+    # This methos was taken from odoo 16.0 
+    def _l10n_mx_edi_decode_cfdi(self, cfdi_data=None):
+        ''' Helper to extract relevant data from the CFDI to be used, for example, when printing the invoice.
+        :param cfdi_data:   The optional cfdi data.
+        :return:            A python dictionary.
+        '''
+        self.ensure_one()
 
-        edi_document_vals_list = []
-        for move in posted:
-            for edi_format in move.journal_id.edi_format_ids:
-                move_applicability = edi_format._get_move_applicability(move)
-            
-                if move_applicability:
-                    edi_content = move.attachment_ids.filtered(lambda m: m.mimetype == 'application/xml')
-                    if edi_content:
-                        edi_document_vals_list.append({
-                            'edi_format_id': edi_format.id,
-                            'move_id': move.id,
-                            'state': 'sent',
-                            'attachment_id': edi_content.id,
-                        })
+        def is_purchase_move(move):
+            return move.move_type in move.get_purchase_types() \
+                    or move.payment_id.reconciled_bill_ids
 
-        res = self.env['account.edi.document'].create(edi_document_vals_list)
-        return posted
+        # Find a signed cfdi.
+        if not cfdi_data:
+            signed_edi = self._get_l10n_mx_edi_signed_edi_document()
+            if signed_edi:
+                cfdi_data = base64.decodebytes(signed_edi.sudo().attachment_id.with_context(bin_size=False).datas)
 
-"""
+            # For vendor bills, the CFDI XML must be posted in the chatter as an attachment.
+            elif is_purchase_move(self) and self.country_code == 'MX' and not self.l10n_mx_edi_cfdi_request:
+                attachments = self.attachment_ids.filtered(lambda x: x.mimetype == 'application/xml')
+                if attachments:
+                    attachment = sorted(attachments, key=lambda x: x.create_date)[-1]
+                    cfdi_data = base64.decodebytes(attachment.with_context(bin_size=False).datas)
+
+        # Nothing to decode.
+        if not cfdi_data:
+            return {}
+
+        try:
+            cfdi_node = fromstring(cfdi_data)
+        except etree.XMLSyntaxError:
+            # Not an xml
+            return {}
+
+        return self._l10n_mx_edi_decode_cfdi_etree(cfdi_node)
+    
+    # This methos was taken from odoo 16.0 
+    def _l10n_mx_edi_decode_cfdi_etree(self, cfdi_node):
+        ''' Helper to extract relevant data from the CFDI etree object, does not require a move record.
+        :param cfdi_node:   The cfdi etree object.
+        :return:            A python dictionary.
+        '''
+        def get_node(cfdi_node, attribute, namespaces):
+            if hasattr(cfdi_node, 'Complemento'):
+                node = cfdi_node.Complemento.xpath(attribute, namespaces=namespaces)
+                return node[0] if node else None
+            else:
+                return None
+
+        def get_cadena(cfdi_node, template):
+            if cfdi_node is None:
+                return None
+            cadena_root = etree.parse(tools.file_open(template))
+            return str(etree.XSLT(cadena_root)(cfdi_node))
+
+        try:
+            emisor_node = cfdi_node.Emisor
+            receptor_node = cfdi_node.Receptor
+        except AttributeError:
+            # Not an xml object or not a valid CFDI
+            return {}
+
+        tfd_node = get_node(
+            cfdi_node,
+            'tfd:TimbreFiscalDigital[1]',
+            {'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital'},
+        )
+
+        return {
+            'uuid': ({} if tfd_node is None else tfd_node).get('UUID'),
+            'supplier_rfc': emisor_node.get('Rfc', emisor_node.get('rfc')),
+            'customer_rfc': receptor_node.get('Rfc', receptor_node.get('rfc')),
+            'amount_total': cfdi_node.get('Total', cfdi_node.get('total')),
+            'cfdi_node': cfdi_node,
+            'usage': receptor_node.get('UsoCFDI'),
+            'payment_method': cfdi_node.get('formaDePago', cfdi_node.get('MetodoPago')),
+            'bank_account': cfdi_node.get('NumCtaPago'),
+            'sello': cfdi_node.get('sello', cfdi_node.get('Sello', 'No identificado')),
+            'sello_sat': tfd_node is not None and tfd_node.get('selloSAT', tfd_node.get('SelloSAT', 'No identificado')),
+            'cadena': tfd_node is not None and get_cadena(tfd_node, self._l10n_mx_edi_get_cadena_xslts()[0]) or get_cadena(cfdi_node, self._l10n_mx_edi_get_cadena_xslts()[1]),
+            'certificate_number': cfdi_node.get('noCertificado', cfdi_node.get('NoCertificado')),
+            'certificate_sat_number': tfd_node is not None and tfd_node.get('NoCertificadoSAT'),
+            'expedition': cfdi_node.get('LugarExpedicion'),
+            'fiscal_regime': emisor_node.get('RegimenFiscal', ''),
+            'emission_date_str': cfdi_node.get('fecha', cfdi_node.get('Fecha', '')).replace('T', ' '),
+            'stamp_date': tfd_node is not None and tfd_node.get('FechaTimbrado', '').replace('T', ' '),
+        }
