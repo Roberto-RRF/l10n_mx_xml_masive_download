@@ -40,9 +40,6 @@
                                 <field name="xml_file_name" invisible="1"/>
                                 <field name="cfdi_type"/>
                             </group>
-                            <group>
-                                <field name="company_id" options="{'no_create': True}" groups="base.group_multi_company"/>
-                            </group>
                         </group>
 
                         <field name="downloaded_product_id">

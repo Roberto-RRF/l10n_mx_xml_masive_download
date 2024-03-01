@@ -297,24 +297,15 @@ class AccountEdiApiDownload(models.Model):
                 for paquete in verificacion['paquetes']:
                     descarga = DescargaMasiva(fiel)
                     descarga = descarga.descargar_paquete(token, RFC, paquete)
-                    #print("Paquete: "+paquete)
 
-                with open('{}.zip'.format(paquete), 'wb') as fp:
                     # Decodificar los datos Base64
                     datos_binarios = base64.b64decode(descarga['paquete_b64'])
-
-                    # Crear un objeto BytesIO para trabajar en memoria
-                    archivo_zip_en_memoria = BytesIO(datos_binarios)
-
-                    # Descomprimir el archivo ZIP en memoria
-                    with zipfile.ZipFile(archivo_zip_en_memoria, 'r') as zip_ref:
-                        # Puedes acceder a los nombres de los archivos en el ZIP
-                        nombres_archivos = zip_ref.namelist()
-
-                        # O extraer los archivos en memoria
-                        for nombre_archivo in nombres_archivos:
-                            cfdi_data = zip_ref.read(nombre_archivo) 
-                            
+                    zipData = BytesIO()
+                    zipData.write(datos_binarios)
+                    myZipFile = zipfile.ZipFile(zipData)
+                    for file in myZipFile.filelist:
+                        with myZipFile.open(file.filename) as myFile:
+                            cfdi_data = myFile.read()
                             try:
                                 cfdi_node = fromstring(cfdi_data)
                                 
@@ -323,8 +314,6 @@ class AccountEdiApiDownload(models.Model):
                                 cfdi_info = {}
 
                             cfdi_infos = self.env['account.move']._l10n_mx_edi_decode_cfdi_etree(cfdi_node)
-
-                           
 
                             """ cfdi_infos = {}
                             'uuid'
@@ -359,21 +348,18 @@ class AccountEdiApiDownload(models.Model):
                                 'company_id': self.company_id.id,
                                 'partner_id': partner_id,
                                 'stamp_date': cfdi_infos.get('stamp_date'),
-                                'xml_file_name': nombre_archivo,
+                                'xml_file_name': myFile.name,
                                 'state': 'no_related',
-                                
                             }
 
                             # Creamos los productos del xml
                             products = get_products(cfdi_data)
                             if products:
                                 created_products = self.env['account.edi.downloaded.xml.sat.products'].create(products)
-                                print("\n\n\n created_products: "+str(created_products)+"\n\n\n")
                                 vals['downloaded_product_id'] = created_products
 
-                            
                             xml_sat_ids.append((0, 0, vals))
-
+                
                 self.write({'xml_sat_ids': xml_sat_ids,'state': 'no_related'})
                 break
 
