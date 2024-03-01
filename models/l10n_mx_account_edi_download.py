@@ -337,16 +337,15 @@ class AccountEdiApiDownload(models.Model):
 
                             # Buscar el partner
                             if(self.cfdi_type == 'emitidos'):
-                                partner_id = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('customer_rfc'))]).id
+                                partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('customer_rfc'))], limit=1)
                             else: 
-                                partner_id = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('supplier_rfc'))]).id
-
+                                partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('supplier_rfc'))], limit=1)
                             vals = {
                                 'name': cfdi_infos.get('uuid'),
                                 'xml_file': base64.b64encode(cfdi_data),
                                 'cfdi_type': self.cfdi_type,
                                 'company_id': self.company_id.id,
-                                'partner_id': partner_id,
+                                'partner_id': partner.id if partner else False,
                                 'stamp_date': cfdi_infos.get('stamp_date'),
                                 'xml_file_name': myFile.name,
                                 'state': 'no_related',
