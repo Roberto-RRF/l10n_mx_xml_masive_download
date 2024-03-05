@@ -12,7 +12,8 @@ from io import BytesIO
 import xml.etree.ElementTree as ET
 from datetime import datetime
  
-  
+#ydktJDzg4Fr9nh
+
 class DownloadedXmlSat(models.Model):
     _name = "account.edi.downloaded.xml.sat"
     _description = "Account Edi Download From SAT Web Service"
@@ -72,14 +73,16 @@ class DownloadedXmlSat(models.Model):
     
     def action_import_invoice(self):
         for item in self:
+            if item.state != 'no_imported':
+                raise 
             root = ET.fromstring(base64.b64decode(item.xml_file))
             receptor = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'})
-
 
             if root.attrib.get('Serie') and root.attrib.get('Folio'):
                 ref = root.attrib.get('Serie')+"/"+root.attrib.get('Folio')
             else:
                 ref = False
+
             account_move_dict = {
                 'ref': ref,
                 'invoice_date': item.stamp_date,
@@ -94,13 +97,9 @@ class DownloadedXmlSat(models.Model):
                 'l10n_mx_edi_payment_method_id': self.env['l10n_mx_edi.payment.method'].search([('code', '=', root.attrib.get('FormaPago'))]).id,
                 'currency_id': self.env['res.currency'].search([('name', '=', root.attrib.get('Moneda'))],limit=1).id,
             }
-            for concepto in item.downloaded_product_id:
-                # if concepto.product_rel:
-                #     product = concepto.product_rel.id
-                # else:
-                #     product = False
 
-                account_move_dict['invoice_line_ids'].append((0, 0, {
+            for concepto in item.downloaded_product_id:
+                    account_move_dict['invoice_line_ids'].append((0, 0, {
                     'product_id': concepto.product_rel.id,
                     'name': concepto.description,
                     'product_id': concepto.product_rel.id,
@@ -354,7 +353,7 @@ class AccountEdiApiDownload(models.Model):
                                 'partner_id': partner.id if partner else False,
                                 'stamp_date': cfdi_infos.get('stamp_date'),
                                 'xml_file_name': myFile.name,
-                                'state': 'no_related',
+                                'state': 'not_imported',
                                 'payment_method': cfdi_infos.get('payment_method'),
                                 'sub_total': root.get('SubTotal') if root.get('SubTotal') else '0.0',
                                 'amount_total': cfdi_infos.get('amount_total') if cfdi_infos.get('amount_total') else '0.0'

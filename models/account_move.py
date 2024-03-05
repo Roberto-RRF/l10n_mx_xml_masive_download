@@ -22,7 +22,7 @@ class AccountMove(models.Model):
                 download.write({'state': 'error'})
 
     def generate_pdf_attatchment(self):
-        pdf = self.env.ref('account.account_invoices').sudo()._render_qweb_pdf([self.id])
+        pdf = self.env.ref('account.account_invoices')._render_qweb_pdf([self.id])
         b64_pdf = base64.b64encode(pdf[0])
 
         ir_values = {
@@ -35,7 +35,7 @@ class AccountMove(models.Model):
             'res_id': self.id,
         }
        
-        self.env['ir.attachment'].sudo().create(ir_values)
+        self.env['ir.attachment'].create(ir_values)
 
     # This methos was taken from odoo 16.0 
     def _l10n_mx_edi_decode_cfdi(self, cfdi_data=None):
