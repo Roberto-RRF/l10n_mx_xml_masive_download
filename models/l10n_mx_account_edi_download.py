@@ -66,68 +66,63 @@ class DownloadedXmlSat(models.Model):
             domain = [('l10n_mx_edi_cfdi_uuid', '=', download_xml.name)]
             move = self.env['account.move'].search(domain, limit=1)
             if move:
-                download_xml.write({'invoice_id':move.id, 'state': move.state})
+                download_xml.writ|e({'invoice_id':move.id, 'state': move.state})
             else:
                 download_xml.write({'state': 'not_imported'})
     
     def action_import_invoice(self):
-        if not self.partner_id:
-            raise UserError("No se ha seleccionado un cliente/proveedor. Relacionar la descarga con un cliente/proveedor.")
-        for product in self.downloaded_product_id:
-            if not product.product_rel:
-                raise UserError("No se ha relacionado el producto: "+product.description+". Relacionar el producto con un producto existente.")
-        
-        root = ET.fromstring(base64.b64decode(self.xml_file))
-        receptor = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'})
+        for item in self:
+            root = ET.fromstring(base64.b64decode(item.xml_file))
+            receptor = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'})
 
-        if self.cfdi_type == 'recibidos' and self.partner_id: 
-            # Pass values as context
-            self.env.context = {'check_move_validity':False}
-            # Create the customer invoice
-            invoice = self.env['account.move'].create({
-                'partner_id': self.partner_id.id,
-                'journal_id': 2, # 2 -> Factura de Proveedores, 1 -> Factura de Clientes
-                'move_type': 'in_invoice', # in_invoice -> Factura de Proveedores
-                'invoice_date': self.stamp_date, 
-                'date': self.stamp_date,
-                'l10n_mx_edi_cfdi_uuid': self.name,
-                'ref': root.attrib.get('Serie')+root.attrib.get('Folio'),
+
+            if root.attrib.get('Serie') and root.attrib.get('Folio'):
+                ref = root.attrib.get('Serie')+"/"+root.attrib.get('Folio')
+            else:
+                ref = False
+            account_move_dict = {
+                'ref': ref,
+                'invoice_date': item.stamp_date,
+                'date': item.stamp_date,
+                'move_type':'in_invoice',
+                'partner_id': item.partner_id.id,
+                'company_id': item.company_id.id,
+                'invoice_line_ids': [],
+                'l10n_mx_edi_cfdi_uuid': item.name,
                 'l10n_mx_edi_usage': receptor.attrib.get('UsoCFDI'),
                 'l10n_mx_edi_payment_policy': root.attrib.get('MetodoPago'),
                 'l10n_mx_edi_payment_method_id': self.env['l10n_mx_edi.payment.method'].search([('code', '=', root.attrib.get('FormaPago'))]).id,
-                'l10n_mx_edi_cfdi_uuid': self.name,
                 'currency_id': self.env['res.currency'].search([('name', '=', root.attrib.get('Moneda'))],limit=1).id,
-            })
+            }
+            for concepto in item.downloaded_product_id:
+                # if concepto.product_rel:
+                #     product = concepto.product_rel.id
+                # else:
+                #     product = False
 
-            # Create the invoice lines
-            for product in self.downloaded_product_id:
-                invoice_line = self.env['account.move.line'].create({
-                    'product_id': product.product_rel.id,
-                    'name': product.description,
-                    'quantity': product.quantity,
-                    'price_unit': product.unit_value,
-                    'tax_ids': [(6, 0, product.product_rel.supplier_taxes_id.ids)],
-                    'move_id': invoice.id,
-                    'price_subtotal': product.total_amount,
-                    'account_id': product.product_rel.property_account_expense_id.id,
-                    'company_id': self.company_id.id,
-                })
+                account_move_dict['invoice_line_ids'].append((0, 0, {
+                    'product_id': concepto.product_rel.id,
+                    'name': concepto.description,
+                    'product_id': concepto.product_rel.id,
+                    'quantity': concepto.quantity,
+                    'price_unit': concepto.unit_value,
+                    'credit': concepto.total_amount,
+                }))
+            account_move = self.env['account.move'].create(account_move_dict)
+            item.write({'invoice_id': account_move.id, 'state': 'draft'})
+            
+            # Add attachments
+            account_move.generate_pdf_attatchment()
 
-            # Generate pdf from xml
-            invoice.generate_pdf_attatchment()
-
-            # 
             attachment_values = {
                 'name': self.xml_file_name,  # Name of the XML file
                 'datas': self.xml_file,  # Read XML file content
                 'res_model': 'account.move',
-                'res_id': invoice.id,
+                'res_id': account_move.id,
                 'mimetype': 'application/xml',
             }
-            # Add xml as attachment
             self.env['ir.attachment'].create(attachment_values)
-
-        return invoice
+            
 
     
 class AccountEdiApiDownload(models.Model):
