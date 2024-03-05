@@ -22,15 +22,14 @@ class AccountMove(models.Model):
                 download.write({'state': 'error'})
 
     def generate_pdf_attatchment(self):
-        invoice_report = self.env.ref('account.account_invoices')
-        data_record = base64.b64encode(
-            self.env['ir.actions.report'].sudo()._render_qweb_pdf(
-                invoice_report, [self.id], data=None)[0])
+        pdf = self.env.ref('account.account_invoices').sudo()._render_qweb_pdf([self.id])
+        b64_pdf = base64.b64encode(pdf[0])
+
         ir_values = {
             'name': 'Invoice ' + self.name,
             'type': 'binary',
-            'datas': data_record,
-            'store_fname': data_record,
+            'datas': b64_pdf,
+            'store_fname': 'Invoice ' + self.name + '.pdf',
             'mimetype': 'application/pdf',
             'res_model': 'account.move',
             'res_id': self.id,

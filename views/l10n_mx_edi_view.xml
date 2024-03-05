@@ -5,15 +5,18 @@
             <field name="name">account.edi.downloaded.xml.sat.tree</field>
             <field name="model">account.edi.downloaded.xml.sat</field>
             <field name="arch" type="xml">
-                <tree string="XML SAT">
+                <tree string="XML SAT" create="0">
                     <field name="name"/>
                     <field name="company_id" />                    
                     <field name="partner_id"/>
                     <field name="invoice_id"/>
+                    <field name="payment_method"/>
                     <field name="xml_file" filename="xml_file_name" invisible="1"/>
                     <field name="xml_file_name" invisible="1"/>
                     <field name="cfdi_type"/>
                     <field name="state"/>
+                    <field name="sub_total"/>
+                    <field name="amount_total"/>
                 </tree>
 
             </field>
@@ -24,7 +27,7 @@
             <field name="name">account.edi.downloaded.xml.sat.form</field>
             <field name="model">account.edi.downloaded.xml.sat</field>
             <field name="arch" type="xml">
-                <form string="XML SAT">
+                <form string="XML SAT" create="0">
                     <header>
                         <button string="Import Invoice" name="action_import_invoice" type="object" class="oe_highlight" attrs="{'invisible': [('state', '!=', 'not_related'),('cfdi_type','==','emitidos')]}"/> 
                         <field name="state" widget="statusbar" statusbar_visible="draft,posted,cancel,not_imported"/>
@@ -42,12 +45,15 @@
                             </group>
                         </group>
 
-                        <field name="downloaded_product_id">
+                        <field name="downloaded_product_id" >
 
-                            <tree string="Products" editable="bottom">
+                            <tree string="Products" editable="bottom" delete="0">
                                 <field name="product_rel" />
                                 <field name="sat_id" readonly="1"/>
                                 <field name="description" readonly="1"/>
+                                <field name="quantity" readonly="1"/>
+                                <field name="unit_value" readonly="1"/>
+                                <field name="total_amount" readonly="1"/>
                             </tree>
                         </field>
 
@@ -58,16 +64,9 @@
 
 
 
-        <record id="account_edi_download_xml_sat_view_action" model="ir.actions.act_window">
-            <field name="name">XML SAT</field>
-            <field name="res_model">account.edi.downloaded.xml.sat</field>
-            <field name="view_mode">tree,form</field>
-        </record>
-
-        <menuitem id="account_edi_download_xml_sat_view_menu" parent="account.menu_finance_entries_actions" action="account_edi_download_xml_sat_view_action" name="XML SAT"/>
 
 
-        <!-- AQUI ABAJO ESTA LO QUE ANTES ERA EL WIZZARD -->
+       
 
 
 
@@ -129,7 +128,14 @@
             <field name="view_mode">tree,form</field>
             <field name="target">current</field>
         </record>
-        <menuitem id="account_edi_api_download_menu" parent="account.menu_finance_entries_actions" action="account_edi_api_download_action" name="Download XML from SAT"/>
+        <menuitem id="account_edi_api_download_menu" parent="account.menu_finance_entries_actions" action="account_edi_api_download_action" sequence="1" name="Download XML from SAT"/>
+        
+        <record id="account_edi_download_xml_sat_view_action" model="ir.actions.act_window">
+            <field name="name">XML SAT</field>
+            <field name="res_model">account.edi.downloaded.xml.sat</field>
+            <field name="view_mode">tree,form</field>
+        </record>
+        <menuitem id="account_edi_download_xml_sat_view_menu" parent="account.menu_finance_entries_actions" action="account_edi_download_xml_sat_view_action" name="XML SAT"/>
 
     </data>
 </odoo>

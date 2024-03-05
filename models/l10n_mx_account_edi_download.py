@@ -49,7 +49,9 @@ class DownloadedXmlSat(models.Model):
         string='Status',
         default='draft',
     )
-
+    payment_method = fields.Selection([('PPD','PPD'),('PUE','PUE')], string='Payment Method', required=True)
+    sub_total = fields.Float(string="Sub Total", required=True)
+    amount_total = fields.Float(string="Sub Total", required=True)
 
     def _compute_active_company_id(self):
         self.active_company_id = self.env.company.id
@@ -79,7 +81,8 @@ class DownloadedXmlSat(models.Model):
         receptor = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'})
 
         if self.cfdi_type == 'recibidos' and self.partner_id: 
-
+            # Pass values as context
+            self.env.context = {'check_move_validity':False}
             # Create the customer invoice
             invoice = self.env['account.move'].create({
                 'partner_id': self.partner_id.id,
@@ -93,7 +96,7 @@ class DownloadedXmlSat(models.Model):
                 'l10n_mx_edi_payment_policy': root.attrib.get('MetodoPago'),
                 'l10n_mx_edi_payment_method_id': self.env['l10n_mx_edi.payment.method'].search([('code', '=', root.attrib.get('FormaPago'))]).id,
                 'l10n_mx_edi_cfdi_uuid': self.name,
-                'currency_id': self.env['res.currency'].search([('name', '=', root.attrib.get('Moneda'))]).id,
+                'currency_id': self.env['res.currency'].search([('name', '=', root.attrib.get('Moneda'))],limit=1).id,
             })
 
             # Create the invoice lines
@@ -106,6 +109,8 @@ class DownloadedXmlSat(models.Model):
                     'tax_ids': [(6, 0, product.product_rel.supplier_taxes_id.ids)],
                     'move_id': invoice.id,
                     'price_subtotal': product.total_amount,
+                    'account_id': product.product_rel.property_account_expense_id.id,
+                    'company_id': self.company_id.id,
                 })
 
             # Generate pdf from xml
@@ -219,12 +224,17 @@ class AccountEdiApiDownload(models.Model):
                     importe = concepto_element.get('Importe')
 
                     # Buscamos a ver si ya se relaciono el producto
-                    domain = [('sat_id', '=', clave_prod_serv),('description', '=', descripcion)]
+                    domain = [
+                        ('sat_id', '=', clave_prod_serv),
+                        ('description', '=', descripcion), 
+                        ('downloaded_invoice_id.partner_id', '!=', False)
+                        ]
                     product_id = self.env['account.edi.downloaded.xml.sat.products'].search(domain, limit=1)
                     
                     # Si no se encontro el producto, nos aseguramos de que no se relacione
                     if not product_id.product_rel:
                         product_id = False
+                    
 
                     # Create a dictionary for each concepto and append it to the list
                     concepto_info = {
@@ -235,7 +245,7 @@ class AccountEdiApiDownload(models.Model):
                         'unit_value': valor_unitario,
                         'total_amount': importe,
                         'downloaded_invoice_id': False,
-                        'product_rel': product_id.id if product_id else False
+                        'product_rel': product_id.id if product_id else False,
                     }
                     conceptos_list.append(concepto_info)
                 return conceptos_list
@@ -314,6 +324,7 @@ class AccountEdiApiDownload(models.Model):
                                 cfdi_info = {}
 
                             cfdi_infos = self.env['account.move']._l10n_mx_edi_decode_cfdi_etree(cfdi_node)
+                            root = ET.fromstring(cfdi_data)
 
                             """ cfdi_infos = {}
                             'uuid'
@@ -349,6 +360,9 @@ class AccountEdiApiDownload(models.Model):
                                 'stamp_date': cfdi_infos.get('stamp_date'),
                                 'xml_file_name': myFile.name,
                                 'state': 'no_related',
+                                'payment_method': cfdi_infos.get('payment_method'),
+                                'sub_total': root.get('SubTotal') if root.get('SubTotal') else '0.0',
+                                'amount_total': cfdi_infos.get('amount_total') if cfdi_infos.get('amount_total') else '0.0'
                             }
 
                             # Creamos los productos del xml
