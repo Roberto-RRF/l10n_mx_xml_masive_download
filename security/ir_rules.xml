@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo noupdate="1">
+<odoo>
 
     <record id="_access_sat_download_rule" model="ir.rule">
         <field name="name">Regla Acceso Descarga XML Compañia</field>

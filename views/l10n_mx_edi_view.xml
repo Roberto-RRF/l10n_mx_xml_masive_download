@@ -14,6 +14,7 @@
                     <field name="xml_file" filename="xml_file_name" invisible="1"/>
                     <field name="xml_file_name" invisible="1"/>
                     <field name="cfdi_type"/>
+                    <field name="document_type"/>
                     <field name="state"/>
                     <field name="sub_total"/>
                     <field name="amount_total"/>
@@ -29,8 +30,8 @@
             <field name="arch" type="xml">
                 <form string="XML SAT" create="0">
                     <header>
-                        <button string="Import Invoice" name="action_import_invoice" type="object" class="oe_highlight" attrs="{'invisible': [('state', '!=', 'not_related'),('cfdi_type','==','emitidos')]}"/> 
-                        <field name="state" widget="statusbar" statusbar_visible="draft,posted,cancel,not_imported"/>
+                        <button string="Import Invoice" name="action_import_invoice" type="object" class="oe_highlight" attrs="{'invisible': [('state', '==', 'not_related')]}"/> 
+                        <field name="state" widget="statusbar" statusbar_visible="not_imported,draft,posted,cancel,error_relating"/>
                     </header>
                     <sheet>
                         <group>
@@ -42,6 +43,7 @@
                                 <field name="xml_file" filename="xml_file_name"/>
                                 <field name="xml_file_name" invisible="1"/>
                                 <field name="cfdi_type"/>
+                                <field name="state"/>
                             </group>
                         </group>
 
@@ -90,8 +92,8 @@
             <field name="arch" type="xml">
                 <form>
                     <header>
-                        <button name="action_download" string="Import" class="oe_highlight" type="object" attrs="{'invisible': [('state','!=','draft')]}"/>
-                        <field name="state" widget="statusbar" />                       
+                        <button name="action_download" string="Import" class="oe_highlight" type="object" attrs="{'invisible': [('state','!=','not_imported')]}"/>             
+                        <field name="state" widget="statusbar" statusbar_visible="not_imported,imported,error"/>
                     </header>
                     <sheet>
                         <div name="button_box" position="inside">
@@ -101,22 +103,12 @@
                         </div>
                         <h1>Download XML from SAT</h1>
                         <group >
-                                <field name="vat" attrs="{'readonly': [('state','!=','draft')]}"/>
+                                <field name="vat" attrs="{'readonly': [('state','!=','not_imported')]}"/>
                                 <field name="company_id" options="{'no_open' : True}"/>
-                                <field name="cfdi_type" attrs="{'readonly': [('state','!=','draft')]}"/>
-                                <field name="date_start" attrs="{'readonly': [('state','!=','draft')]}"/>
-                                <field name="date_end" attrs="{'readonly': [('state','!=','draft')]}"/>
+                                <field name="cfdi_type" attrs="{'readonly': [('state','!=','not_imported')]}"/>
+                                <field name="date_start" attrs="{'readonly': [('state','!=','not_imported')]}"/>
+                                <field name="date_end" attrs="{'readonly': [('state','!=','not_imported')]}"/>
                         </group>
-                        <notebook invisible="1">
-                            <page string="XML SAT" name="xml_sat">
-                                <field
-                                    name="xml_sat_ids"
-                                    widget="section_and_note_one2many"
-                                    mode="tree,kanban"
-                                    attrs="{'readonly': [('state','!=','draft')]}"
-                                />
-                            </page>
-                        </notebook>
                     </sheet>
                 </form>
             </field>

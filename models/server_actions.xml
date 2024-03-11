@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <data>
+        <record id="relate_invoice_to_xml" model="ir.actions.server">
+            <field name="name">Relate XML to Invoice</field>
+            <field name="model_id" ref="model_account_edi_downloaded_xml_sat"/>
+            <field name="state">code</field>
+            <field name="code">
+                for rec in records:
+                    rec.relate_download()
+            </field>
+        </record>
+    </data>
+
+</odoo>

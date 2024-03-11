@@ -41,18 +41,25 @@ class DownloadedXmlSat(models.Model):
     state = fields.Selection([('draft', 'Draft'), ('done', 'Done')], string='State', default='draft')
     state = fields.Selection(
         selection=[
-            ('no_related', 'No Related'),
+            ('not_imported', 'No Importado'),
             ('draft', 'Draft'),
             ('posted', 'Posted'),
             ('cancel', 'Cancelled'),
-            ('not_imported', 'No Importado'),
+            ('error_relating', 'Error Relating'),
         ],
         string='Status',
         default='draft',
     )
     payment_method = fields.Selection([('PPD','PPD'),('PUE','PUE')], string='Payment Method', required=True)
     sub_total = fields.Float(string="Sub Total", required=True)
-    amount_total = fields.Float(string="Sub Total", required=True)
+    amount_total = fields.Float(string="Total", required=True)
+    document_type = fields.Selection([
+        ('I', 'Ingreso'),
+        ('E', 'Egreso'),
+        ('T', 'Traslado'),
+        ('N', 'Nomina'),
+        ('P', 'Pago'),
+    ], string='Tipo de Documento')
 
     def _compute_active_company_id(self):
         self.active_company_id = self.env.company.id
@@ -63,18 +70,16 @@ class DownloadedXmlSat(models.Model):
         string='Downloaded product ID',)  
     
     def relate_download(self): 
-        for download_xml in self:
-            domain = [('l10n_mx_edi_cfdi_uuid', '=', download_xml.name)]
-            move = self.env['account.move'].search(domain, limit=1)
+        for item in self:
+            move = self.env['account.move'].search([('sat_uuid', '=', item.name)], limit=1)
             if move:
-                download_xml.writ|e({'invoice_id':move.id, 'state': move.state})
-            else:
-                download_xml.write({'state': 'not_imported'})
+                item.write({'invoice_id': move.id, 'state': move.state})
+
     
     def action_import_invoice(self):
         for item in self:
-            if item.state != 'no_imported':
-                raise 
+            #if item.state != 'no_imported':
+            #    raise UserError("El XML ya fue importado")
             root = ET.fromstring(base64.b64decode(item.xml_file))
             receptor = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'})
 
@@ -142,14 +147,11 @@ class AccountEdiApiDownload(models.Model):
     cfdi_type = fields.Selection([('emitidos', 'Emitidos'), ('recibidos', 'Recibidos')], string='Type', required=True, default='emitidos')
     state = fields.Selection(
     selection=[
-        ('no_related', 'No Related'),
-        ('draft', 'Draft'),
-        ('posted', 'Posted'),
-        ('cancel', 'Cancelled'),
-        ('not_imported', 'No Importado'),
+        ('not_imported', 'No importado'),
+        ('imported', 'Importado'),
+        ('error', 'Error'),
     ],
-    string='Status',
-    default='draft',
+    string='Status', default='not_imported', readonly=True, 
     )
     xml_sat_ids = fields.One2many(
         'account.edi.downloaded.xml.sat',
@@ -157,7 +159,7 @@ class AccountEdiApiDownload(models.Model):
         string='Downloaded XML SAT',
         copy=True,
         readonly=True,
-        states={'draft': [('readonly', False)]},
+        #states={'not_imported': [('readonly', False)]},
     )
     xml_count = fields.Integer(string='Delivery Orders', compute='_compute_xml_ids')
     #stamp_date =  fields.Char(string="Stamped Date", required=True)
@@ -288,12 +290,13 @@ class AccountEdiApiDownload(models.Model):
             # 6, Vencida
 
             if estado_solicitud <= 2:
-                # Estado aceptado, esperar 60 segundos y volver a verificar
-                time.sleep(60)
+                # Estado aceptado, esperar 40 segundos y volver a verificar
+                time.sleep(30)
                 continue
 
             elif estado_solicitud >= 4:
                 # Si el estatus es 4 o mayor se trata de un error
+                self.write({'state': 'error'})
                 raise UserError("Error al descargar los CFDI")
                 break
             else:
@@ -319,6 +322,11 @@ class AccountEdiApiDownload(models.Model):
 
                             cfdi_infos = self.env['account.move']._l10n_mx_edi_decode_cfdi_etree(cfdi_node)
                             root = ET.fromstring(cfdi_data)
+
+                            # Verificar que no se duplique el UUID
+                            domain = [('name', '=', cfdi_infos.get('uuid'))]
+                            if self.env['account.edi.downloaded.xml.sat'].search(domain, limit=1):
+                                continue
 
                             """ cfdi_infos = {}
                             'uuid'
@@ -354,6 +362,7 @@ class AccountEdiApiDownload(models.Model):
                                 'stamp_date': cfdi_infos.get('stamp_date'),
                                 'xml_file_name': myFile.name,
                                 'state': 'not_imported',
+                                'document_type': root.get('TipoDeComprobante'),
                                 'payment_method': cfdi_infos.get('payment_method'),
                                 'sub_total': root.get('SubTotal') if root.get('SubTotal') else '0.0',
                                 'amount_total': cfdi_infos.get('amount_total') if cfdi_infos.get('amount_total') else '0.0'
@@ -367,7 +376,7 @@ class AccountEdiApiDownload(models.Model):
 
                             xml_sat_ids.append((0, 0, vals))
                 
-                self.write({'xml_sat_ids': xml_sat_ids,'state': 'no_related'})
+                self.write({'xml_sat_ids': xml_sat_ids,'state': 'imported'})
                 break
 
 class DownloadedXmlSatProducts(models.Model):
@@ -381,6 +390,7 @@ class DownloadedXmlSatProducts(models.Model):
     unit_value = fields.Float(string="Valor Unitario", required=True)
     total_amount = fields.Float(string="Importe", required=True)
     product_rel = fields.Many2one('product.product')
+    tax_id = fields.Many2one('account.tax')
 
     downloaded_invoice_id = fields.Many2one(
         'account.edi.downloaded.xml.sat',

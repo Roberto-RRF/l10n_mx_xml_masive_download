@@ -1,4 +1,4 @@
-from odoo import fields, models, tools
+from odoo import api, fields, models, tools
 from odoo.exceptions import UserError
 import base64
 from lxml import etree
@@ -7,6 +7,13 @@ from lxml.objectify import fromstring
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
+
+    @api.onchange('state')
+    def _onchange_update_downloaded_xml_record(self):
+        downloaded_xml = self.env['account.edi.downloaded.xml.sat'].search([('invoice_id', '=', self.id)], limit=1)
+        if downloaded_xml:
+            downloaded_xml.write({'state': self.state})
+        
 
     # This method was moved to DownloadedXmlSat --> delete later 
     def relate_download(self):
