@@ -7,6 +7,23 @@ from lxml.objectify import fromstring
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
+    stored_sat_uuid = fields.Char(compute='_get_uuid_from_xml_attachment', string="CFDI UUID", store=True, index=True)
+    xml_imported = fields.Boolean(string="XML Imported", default=False)
+
+    """
+    Method created to have a field that stores the UUID of the CFDI in the account.move model
+    To be able to relate the downloaded xml with the invoice
+    """
+    @api.depends('attachment_ids')
+    def _get_uuid_from_xml_attachment(self):
+        for record in self:
+            attachment = record.attachment_ids.filtered(lambda x: x.mimetype == 'application/xml')
+            if attachment:
+                xml = base64.decodebytes(attachment.with_context(bin_size=False).datas)
+                cfdi_data = self._l10n_mx_edi_decode_cfdi_etree(fromstring(xml))
+                record.stored_sat_uuid = cfdi_data.get('uuid', False)
+            else:
+                record.stored_sat_uuid = False
 
     @api.onchange('state')
     def _onchange_update_downloaded_xml_record(self):

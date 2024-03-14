@@ -71,15 +71,14 @@ class DownloadedXmlSat(models.Model):
     
     def relate_download(self): 
         for item in self:
-            move = self.env['account.move'].search([('sat_uuid', '=', item.name)], limit=1)
+            move = self.env['account.move'].search([('stored_sat_uuid', '=', item.name)], limit=1)
             if move:
                 item.write({'invoice_id': move.id, 'state': move.state})
+
 
     
     def action_import_invoice(self):
         for item in self:
-            #if item.state != 'no_imported':
-            #    raise UserError("El XML ya fue importado")
             root = ET.fromstring(base64.b64decode(item.xml_file))
             receptor = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'})
 
@@ -101,6 +100,7 @@ class DownloadedXmlSat(models.Model):
                 'l10n_mx_edi_payment_policy': root.attrib.get('MetodoPago'),
                 'l10n_mx_edi_payment_method_id': self.env['l10n_mx_edi.payment.method'].search([('code', '=', root.attrib.get('FormaPago'))]).id,
                 'currency_id': self.env['res.currency'].search([('name', '=', root.attrib.get('Moneda'))],limit=1).id,
+                'xml_imported': True,
             }
 
             for concepto in item.downloaded_product_id:
@@ -111,6 +111,7 @@ class DownloadedXmlSat(models.Model):
                     'quantity': concepto.quantity,
                     'price_unit': concepto.unit_value,
                     'credit': concepto.total_amount,
+                    'tax_ids': [(6, 0, [concepto.tax_id.id])],
                 }))
             account_move = self.env['account.move'].create(account_move_dict)
             item.write({'invoice_id': account_move.id, 'state': 'draft'})
@@ -197,7 +198,7 @@ class AccountEdiApiDownload(models.Model):
         
         return: list of dictionaries with the products
         """
-        def get_products(xml_file):
+        def get_products(xml_file, recived):
             root = ET.fromstring(xml_file)
 
             # Define the namespace used in the XML
@@ -219,6 +220,35 @@ class AccountEdiApiDownload(models.Model):
                     valor_unitario = concepto_element.get('ValorUnitario')
                     importe = concepto_element.get('Importe')
 
+                    tasas = []
+                    # Buscamos los impuestos
+                    impuestos = concepto_element.find('.//cfdi:Impuestos', namespaces=ns)
+                    if impuestos is not None:
+                        traslados = impuestos.find('.//cfdi:Traslados', namespaces=ns)
+                        if traslados is not None:
+                            for traslado in traslados.findall('.//cfdi:Traslado', namespaces=ns):
+                                # Transform tasa, example: 0.160000 -> 16
+                                print("Impuesto: "+traslado.get('TasaOCuota')+"\n\n")
+                                tasa = float(traslado.get('TasaOCuota')) * 100
+                                tasas.append(tasa)
+                        retenciones = impuestos.find('.//cfdi:Retenciones', namespaces=ns)
+                        if retenciones is not None:
+                            for retencion in retenciones.findall('.//cfdi:Retencion', namespaces=ns):
+                                # Transform tasa, example: 0.160000 -> 16
+                                print("Retenciones: "+retencion.get('TasaOCuota')+"\n\n")
+                                tasa = float(retencion.get('TasaOCuota')) * 100
+                                tasas.append(tasa)
+                                
+
+                    if recived:
+                        tax_type = 'purchase'
+                    else:
+                        tax_type = 'sale'
+
+                    # Buscamos los impuestos
+                    tax_elm = self.env['account.tax'].search([('amount', 'in', tasas), ('type_tax_use', '=', tax_type)])
+
+
                     # Buscamos a ver si ya se relaciono el producto
                     domain = [
                         ('sat_id', '=', clave_prod_serv),
@@ -231,7 +261,7 @@ class AccountEdiApiDownload(models.Model):
                     if not product_id.product_rel:
                         product_id = False
                     
-
+                    
                     # Create a dictionary for each concepto and append it to the list
                     concepto_info = {
                         'sat_id': clave_prod_serv,
@@ -242,6 +272,7 @@ class AccountEdiApiDownload(models.Model):
                         'total_amount': importe,
                         'downloaded_invoice_id': False,
                         'product_rel': product_id.id if product_id else False,
+                        'tax_id': tax_elm.ids
                     }
                     conceptos_list.append(concepto_info)
                 return conceptos_list
@@ -368,8 +399,12 @@ class AccountEdiApiDownload(models.Model):
                                 'amount_total': cfdi_infos.get('amount_total') if cfdi_infos.get('amount_total') else '0.0'
                             }
 
+                            recived = False
+                            if(self.cfdi_type == 'recibidos'):
+                                recived = True
                             # Creamos los productos del xml
-                            products = get_products(cfdi_data)
+                            # recived: boolean to search type of tax
+                            products = get_products(cfdi_data,recived)
                             if products:
                                 created_products = self.env['account.edi.downloaded.xml.sat.products'].create(products)
                                 vals['downloaded_product_id'] = created_products
@@ -390,7 +425,7 @@ class DownloadedXmlSatProducts(models.Model):
     unit_value = fields.Float(string="Valor Unitario", required=True)
     total_amount = fields.Float(string="Importe", required=True)
     product_rel = fields.Many2one('product.product')
-    tax_id = fields.Many2one('account.tax')
+    tax_id = fields.Many2many('account.tax')
 
     downloaded_invoice_id = fields.Many2one(
         'account.edi.downloaded.xml.sat',
