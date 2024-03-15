@@ -14,17 +14,11 @@ class AccountMove(models.Model):
     Method created to have a field that stores the UUID of the CFDI in the account.move model
     To be able to relate the downloaded xml with the invoice
     """
-    @api.depends('attachment_ids')
+    @api.depends('edi_document_ids', 'edi_document_ids.state', 'attachment_ids')
     def _get_uuid_from_xml_attachment(self):
-        for record in self:
-            attachment = record._get_xml_file_content()
-            if attachment:
-                attachment = attachment.ensure_one()
-                xml = base64.decodebytes(attachment.with_context(bin_size=False).datas)
-                cfdi_data = self._l10n_mx_edi_decode_cfdi_etree(fromstring(xml))
-                record.stored_sat_uuid = cfdi_data.get('uuid', False)
-            else:
-                record.stored_sat_uuid = False
+        for move in self:
+            cfdi_infos = move._l10n_mx_edi_decode_cfdi()
+            move.stored_sat_uuid = cfdi_infos.get('uuid')
 
     @api.onchange('state')
     def _onchange_update_downloaded_xml_record(self):
