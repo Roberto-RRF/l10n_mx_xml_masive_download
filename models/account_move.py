@@ -17,7 +17,7 @@ class AccountMove(models.Model):
     @api.depends('attachment_ids')
     def _get_uuid_from_xml_attachment(self):
         for record in self:
-            attachment = record.attachment_ids.filtered(lambda x: x.mimetype == 'application/xml')
+            attachment = record._get_xml_file_content()
             if attachment:
                 attachment = attachment.ensure_one()
                 xml = base64.decodebytes(attachment.with_context(bin_size=False).datas)
