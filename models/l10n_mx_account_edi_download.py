@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
  
 #ydktJDzg4Fr9nh
+#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
 
 class DownloadedXmlSat(models.Model):
     _name = "account.edi.downloaded.xml.sat"
