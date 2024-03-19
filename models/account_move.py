@@ -19,15 +19,14 @@ class AccountMove(models.Model):
         for record in self:
             if self.stored_sat_uuid:
                 continue
-            attachments = record.attachment_ids.filtered(lambda x: x.mimetype == 'application/xml')
-            if attachments:
-                for attachment in attachments: 
-                    try:
-                        xml = base64.decodebytes(attachment.with_context(bin_size=False).datas)
-                        cfdi_data = self._l10n_mx_edi_decode_cfdi_etree(fromstring(xml))
-                        record.stored_sat_uuid = cfdi_data.get('uuid', False)
-                    except:
-                        pass
+            attachment = record.attachment_ids.search([('mimetype', '=', 'application/xml')], limit=1)
+            if attachment:
+                try:
+                    xml = base64.decodebytes(attachment.with_context(bin_size=False).datas)
+                    cfdi_data = self._l10n_mx_edi_decode_cfdi_etree(fromstring(xml))
+                    record.stored_sat_uuid = cfdi_data.get('uuid', False)
+                except:
+                    pass
             else:
                 record.stored_sat_uuid = False
 
