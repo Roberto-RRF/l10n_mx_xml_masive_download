@@ -8,6 +8,7 @@ class AccountMove(models.Model):
     _inherit = 'account.move'
 
     xml_imported = fields.Boolean(string="XML Imported", default=False)
+    stored_sat_uuid = fields.Char(compute='_get_uuid_from_xml_attachment', string="CFDI UUID", store=True, index=True, default=False)
 
     """
     Method created to have a field that stores the UUID of the CFDI in the account.move model
@@ -28,7 +29,6 @@ class AccountMove(models.Model):
                 record.stored_sat_uuid = False
         
 
-    stored_sat_uuid = fields.Char(compute='_get_uuid_from_xml_attachment', string="CFDI UUID", store=True, index=True, default=False)
 
     @api.onchange('state')
     def _onchange_update_downloaded_xml_record(self):

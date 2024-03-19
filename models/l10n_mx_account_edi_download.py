@@ -21,11 +21,11 @@ class DownloadedXmlSat(models.Model):
     _check_company_auto = True
   
     name = fields.Char(string="UUID", required=True, index='trigram')
-    active_company_id = fields.Integer(string='Active Company ID', compute='_compute_active_company_id')
+    active_company_id = fields.Integer(string='Empresa', compute='_compute_active_company_id')
     company_id = fields.Many2one('res.company', string='Company', default=lambda self: self.env.company.id) 
     partner_id = fields.Many2one('res.partner') # Cliente/Proveedor
     invoice_id = fields.Many2one('account.move') # Factura
-    xml_file = fields.Binary(string='XML File') # Archivo XML
+    xml_file = fields.Binary(string='Archivo XML') # Archivo XML
     cfdi_type = fields.Selection([('emitidos', 'Emitidos'), ('recibidos', 'Recibidos')], string='Type', required=True, default='emitidos') 
     batch_id = fields.Many2one(
         comodel_name='account.edi.api.download',
@@ -37,8 +37,8 @@ class DownloadedXmlSat(models.Model):
         ondelete="cascade",
         check_company=True,
     )
-    stamp_date =  fields.Char(string="Stamped Date", required=True)
-    xml_file_name = fields.Char(string='XML File Name')
+    stamp_date =  fields.Char(string="Fecha", required=True)
+    xml_file_name = fields.Char(string='Nombre archivo XML')
     state = fields.Selection([('draft', 'Draft'), ('done', 'Done')], string='State', default='draft')
     state = fields.Selection(
         selection=[
@@ -46,12 +46,12 @@ class DownloadedXmlSat(models.Model):
             ('draft', 'Draft'),
             ('posted', 'Posted'),
             ('cancel', 'Cancelled'),
-            ('error_relating', 'Error Relating'),
+            ('error_relating', 'Error Relacionando'),
         ],
         string='Status',
         default='draft',
     )
-    payment_method = fields.Selection([('PPD','PPD'),('PUE','PUE')], string='Payment Method', required=True)
+    payment_method = fields.Selection([('PPD','PPD'),('PUE','PUE')], string='Metodo de Pago', required=True)
     sub_total = fields.Float(string="Sub Total", required=True)
     amount_total = fields.Float(string="Total", required=True)
     document_type = fields.Selection([
@@ -61,6 +61,7 @@ class DownloadedXmlSat(models.Model):
         ('N', 'Nomina'),
         ('P', 'Pago'),
     ], string='Tipo de Documento')
+    imported = fields.Boolean(string="Importado", default=False)
 
     def _compute_active_company_id(self):
         self.active_company_id = self.env.company.id
@@ -128,8 +129,13 @@ class DownloadedXmlSat(models.Model):
                 'mimetype': 'application/xml',
             }
             self.env['ir.attachment'].create(attachment_values)
-            
+            item.write({'imported': True,})
 
+    def action_add_payment(self):
+        # Search for the payment method
+        raise UserError("Pago no econtrado")
+        
+        pass
     
 class AccountEdiApiDownload(models.Model):
     _name = 'account.edi.api.download'
@@ -141,12 +147,12 @@ class AccountEdiApiDownload(models.Model):
         return self.env.company.vat
     
     # Fields
-    name = fields.Char(string='Name',  index=True) #required=True,
-    vat = fields.Char(string='Tax ID',  default=_get_default_vat ,help="The Tax Identification Number. Complete it if the contact is subjected to government taxes. Used in some legal statements.")
+    name = fields.Char(string='Nombre',  index=True) 
+    vat = fields.Char(string='RFC',  default=_get_default_vat)
     company_id = fields.Many2one('res.company', string='Company', default=lambda self: self.env.company.id, readonly = True)
-    date_start = fields.Date(string='Start Date', required=True, default=fields.Date.today())
-    date_end = fields.Date(string='End Date', required=True, default=fields.Date.today())
-    cfdi_type = fields.Selection([('emitidos', 'Emitidos'), ('recibidos', 'Recibidos')], string='Type', required=True, default='emitidos')
+    date_start = fields.Date(string='Fecha de Comienzo', required=True, default=fields.Date.today())
+    date_end = fields.Date(string='Fecha de Finalizacion', required=True, default=fields.Date.today())
+    cfdi_type = fields.Selection([('emitidos', 'Emitidos'), ('recibidos', 'Recibidos')], string='Tipo', required=True, default='emitidos')
     state = fields.Selection(
     selection=[
         ('not_imported', 'No importado'),

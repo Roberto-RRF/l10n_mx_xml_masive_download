@@ -30,12 +30,15 @@
             <field name="arch" type="xml">
                 <form string="XML SAT" create="0">
                     <header>
-                        <button string="Import Invoice" name="action_import_invoice" type="object" class="oe_highlight" attrs="{'invisible': [('state', '==', 'not_related')]}"/> 
+                        <button string="Importar Factura" name="action_import_invoice" type="object" class="oe_highlight" attrs="{'invisible': [('imported','==',True)]}"/> 
+                        <button string="Adjuntar complemento" name="action_add_payment" type="object" class="oe_highlight" attrs="{'invisible': [('document_type', '!=', 'P')]}"/> 
                         <field name="state" widget="statusbar" statusbar_visible="not_imported,draft,posted,cancel,error_relating"/>
                     </header>
                     <sheet>
                         <group>
                             <group>
+                                <field name="document_type" invisible="1"/> 
+                                <field name="imported" invisible="1"/>
                                 <field name="name"/>
                                 <field name="company_id"/>
                                 <field name="partner_id"/>
@@ -43,7 +46,6 @@
                                 <field name="xml_file" filename="xml_file_name"/>
                                 <field name="xml_file_name" invisible="1"/>
                                 <field name="cfdi_type"/>
-                                <field name="state"/>
                             </group>
                         </group>
 
@@ -102,7 +104,7 @@
                              <field name="xml_count" widget="statinfo" string="XML"/>
                         </button>
                         </div>
-                        <h1>Download XML from SAT</h1>
+                        <h1>Descargar XMLs del SAT</h1>
                         <group >
                                 <field name="vat" attrs="{'readonly': [('state','!=','not_imported')]}"/>
                                 <field name="company_id" options="{'no_open' : True}"/>
@@ -116,7 +118,7 @@
         </record>
 
         <record id="account_edi_api_download_action" model="ir.actions.act_window">
-            <field name="name">Download XML from SAT</field>
+            <field name="name">Descargar XMLs del SAT</field>
             <field name="res_model">account.edi.api.download</field>
             <field name="view_mode">tree,form</field>
             <field name="target">current</field>
@@ -124,7 +126,7 @@
         <menuitem id="account_edi_api_download_menu" parent="account.menu_finance_entries_actions" action="account_edi_api_download_action" sequence="1" name="Download XML from SAT"/>
         
         <record id="account_edi_download_xml_sat_view_action" model="ir.actions.act_window">
-            <field name="name">XML SAT</field>
+            <field name="name">XMLs Descargados del SAT</field>
             <field name="res_model">account.edi.downloaded.xml.sat</field>
             <field name="view_mode">tree,form</field>
         </record>
