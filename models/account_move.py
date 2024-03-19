@@ -7,7 +7,6 @@ from lxml.objectify import fromstring
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
-    stored_sat_uuid = fields.Char(compute='_get_uuid_from_xml_attachment', string="CFDI UUID", store=True, index=True, default=False)
     xml_imported = fields.Boolean(string="XML Imported", default=False)
 
     """
@@ -17,8 +16,6 @@ class AccountMove(models.Model):
     @api.depends('attachment_ids')
     def _get_uuid_from_xml_attachment(self):
         for record in self:
-            if self.stored_sat_uuid:
-                continue
             attachments = record.attachment_ids.filtered(lambda x: x.mimetype == 'application/xml')
             if attachments:
                 try: 
@@ -27,6 +24,11 @@ class AccountMove(models.Model):
                     record.stored_sat_uuid = cfdi_data['uuid']
                 except:
                     pass
+            else:
+                record.stored_sat_uuid = False
+        
+
+    stored_sat_uuid = fields.Char(compute='_get_uuid_from_xml_attachment', string="CFDI UUID", store=True, index=True, default=False)
 
     @api.onchange('state')
     def _onchange_update_downloaded_xml_record(self):
