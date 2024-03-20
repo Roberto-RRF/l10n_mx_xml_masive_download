@@ -19,7 +19,7 @@
                             </div>
                             <div class="row mt16">
                                 <field name="l10n_mx_edi_fiel_ids" string="Certificates"
-                                    context="{'default_l10n_mx_fiel': True}"
+                                    context="{'default_l10n_mx_fiel': True }"
                                 >
                                 </field>
                             </div>

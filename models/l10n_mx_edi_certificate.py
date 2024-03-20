@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 
 class Certificate(models.Model):
     _inherit = 'l10n_mx_edi.certificate'
@@ -13,6 +14,3 @@ class Certificate(models.Model):
 
     # Field to store private key file name
     key_name = fields.Char("Nombre del Archivo")
-
-    # Field to store comapny id, this is useful in multi-company environments
-    l10n_mx_company_id = fields.Many2one('res.company', string='Company', ondelete='cascade', index=True, default=lambda self: self.env.company.id)

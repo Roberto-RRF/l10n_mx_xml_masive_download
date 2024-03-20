@@ -26,7 +26,7 @@ class DownloadedXmlSat(models.Model):
     partner_id = fields.Many2one('res.partner') # Cliente/Proveedor
     invoice_id = fields.Many2one('account.move') # Factura
     xml_file = fields.Binary(string='Archivo XML') # Archivo XML
-    cfdi_type = fields.Selection([('emitidos', 'Emitidos'), ('recibidos', 'Recibidos')], string='Type', required=True, default='emitidos') 
+    cfdi_type = fields.Selection([('emitidos', 'Emitidos'), ('recibidos', 'Recibidos')], string='Tipo', required=True, default='emitidos') 
     batch_id = fields.Many2one(
         comodel_name='account.edi.api.download',
         string='Batch',
@@ -173,9 +173,8 @@ class AccountEdiApiDownload(models.Model):
     #stamp_date =  fields.Char(string="Stamped Date", required=True)
 
     def _get_default_certificates(self):
-        domain = [('date_start', '<=', fields.Date.today()), ('date_end', '>=', fields.Date.today()),('l10n_mx_fiel', '=', True),('l10n_mx_company_id', '=', self.env.company.id)]
-        cer = self.env['l10n_mx_edi.certificate'].search(domain, limit=1)
-        # raise UserError(str(cer))
+        cer = self.env.company.l10n_mx_edi_fiel_ids.filtered(lambda x: x.l10n_mx_fiel == True)
+
         if not cer:
             raise UserError("No existe un certificado activo para el periodo actual")
         else: 
