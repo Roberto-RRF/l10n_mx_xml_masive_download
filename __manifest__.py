@@ -22,4 +22,5 @@ XML Masive Download from SAT WebService.
     ],
     'auto_install': False,
     "license": "AGPL-3",
+    # 'pre_init_hook': 'pre_init_hook',
 }
