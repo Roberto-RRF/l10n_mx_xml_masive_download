@@ -62,28 +62,24 @@ class DownloadedXmlSat(models.Model):
         ('P', 'Pago'),
     ], string='Tipo de Documento')
     imported = fields.Boolean(string="Importado", default=False)
-
-    def _compute_active_company_id(self):
-        self.active_company_id = self.env.company.id
-
     downloaded_product_id = fields.One2many(
         'account.edi.downloaded.xml.sat.products',
         'downloaded_invoice_id',
         string='Downloaded product ID',)  
-    
+
+    def _compute_active_company_id(self):
+        self.active_company_id = self.env.company.id
+
     def relate_download(self): 
         for item in self:
             move = self.env['account.move'].search([('stored_sat_uuid', '=', item.name)], limit=1)
             if move:
                 item.write({'invoice_id': move.id, 'state': move.state})
 
-
-    
     def action_import_invoice(self):
         for item in self:
             root = ET.fromstring(base64.b64decode(item.xml_file))
             receptor = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'})
-
             if root.attrib.get('Serie') and root.attrib.get('Folio'):
                 ref = root.attrib.get('Serie')+"/"+root.attrib.get('Folio')
             else:
@@ -118,9 +114,8 @@ class DownloadedXmlSat(models.Model):
             account_move = self.env['account.move'].create(account_move_dict)
             item.write({'invoice_id': account_move.id, 'state': 'draft'})
             
-            # Add attachments
+            # Generate pdf and xml attatchments
             account_move.generate_pdf_attatchment()
-
             attachment_values = {
                 'name': self.xml_file_name,  # Name of the XML file
                 'datas': self.xml_file,  # Read XML file content
@@ -129,13 +124,20 @@ class DownloadedXmlSat(models.Model):
                 'mimetype': 'application/xml',
             }
             self.env['ir.attachment'].create(attachment_values)
-            item.write({'imported': True,})
+            item.write({'imported': True})
 
     def action_add_payment(self):
-        # Search for the payment method
-        raise UserError("Pago no econtrado")
-        
-        pass
+        payment = self.env['account.payment'].search([('stored_sat_uuid','=',self.name)], limit=1)
+        if payment and payment.status == 'paid':
+            attachment_values = {
+                'name': self.xml_file_name,  # Name of the XML file
+                'datas': self.xml_file,  # Read XML file content
+                'res_model': 'account.move',
+                'res_id': payment.id,
+                'mimetype': 'application/xml',
+            }
+            self.env['ir.attachment'].create(attachment_values)
+            self.write({'imported': True})
     
 class AccountEdiApiDownload(models.Model):
     _name = 'account.edi.api.download'
@@ -170,7 +172,6 @@ class AccountEdiApiDownload(models.Model):
         #states={'not_imported': [('readonly', False)]},
     )
     xml_count = fields.Integer(string='Delivery Orders', compute='_compute_xml_ids')
-    #stamp_date =  fields.Char(string="Stamped Date", required=True)
 
     def _get_default_certificates(self):
         cer = self.env.company.l10n_mx_edi_fiel_ids.filtered(lambda x: x.l10n_mx_fiel == True)
@@ -198,24 +199,18 @@ class AccountEdiApiDownload(models.Model):
         }
         
     def action_download(self):
-
         """  
         Function that extracts the products from the XML
-        
         return: list of dictionaries with the products
         """
         def get_products(xml_file, recived):
             root = ET.fromstring(xml_file)
-
             # Define the namespace used in the XML
             ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
-
             # Find the cfdi:Conceptos element
             conceptos_element = root.find('.//cfdi:Conceptos', namespaces=ns)
-
             # Initialize an empty list to store dictionaries
             conceptos_list = []
-
             if conceptos_element is not None:
                 # Iterate over cfdi:Concepto elements and extract information
                 for concepto_element in conceptos_element.findall('.//cfdi:Concepto', namespaces=ns):
@@ -227,34 +222,32 @@ class AccountEdiApiDownload(models.Model):
                     importe = concepto_element.get('Importe')
 
                     tasas = []
+                    tax_elm = False
                     # Buscamos los impuestos
                     impuestos = concepto_element.find('.//cfdi:Impuestos', namespaces=ns)
                     if impuestos is not None:
-                        traslados = impuestos.find('.//cfdi:Traslados', namespaces=ns)
-                        if traslados is not None:
-                            for traslado in traslados.findall('.//cfdi:Traslado', namespaces=ns):
-                                # Transform tasa, example: 0.160000 -> 16
-                                print("Impuesto: "+traslado.get('TasaOCuota')+"\n\n")
-                                tasa = float(traslado.get('TasaOCuota')) * 100
-                                tasas.append(tasa)
-                        retenciones = impuestos.find('.//cfdi:Retenciones', namespaces=ns)
-                        if retenciones is not None:
-                            for retencion in retenciones.findall('.//cfdi:Retencion', namespaces=ns):
-                                # Transform tasa, example: 0.160000 -> 16
-                                print("Retenciones: "+retencion.get('TasaOCuota')+"\n\n")
-                                tasa = float(retencion.get('TasaOCuota')) * 100
-                                tasas.append(tasa)
-                                
+                        try:
+                            traslados = impuestos.find('.//cfdi:Traslados', namespaces=ns)
+                            if traslados is not None:
+                                for traslado in traslados.findall('.//cfdi:Traslado', namespaces=ns):
+                                    # Transform tasa, example: 0.160000 -> 16
+                                    tasa = float(traslado.get('TasaOCuota')) * 100
+                                    tasas.append(tasa)
 
-                    if recived:
-                        tax_type = 'purchase'
-                    else:
-                        tax_type = 'sale'
+                            retenciones = impuestos.find('.//cfdi:Retenciones', namespaces=ns)
+                            if retenciones is not None:
+                                for retencion in retenciones.findall('.//cfdi:Retencion', namespaces=ns):
+                                    tasa = float(retencion.get('TasaOCuota')) * 100
+                                    tasas.append(tasa)
+                            if recived:
+                                tax_type = 'purchase'
+                            else:
+                                tax_type = 'sale'
 
-                    # Buscamos los impuestos
-                    tax_elm = self.env['account.tax'].search([('amount', 'in', tasas), ('type_tax_use', '=', tax_type)])
-
-
+                            # Buscamos los impuestos
+                            tax_elm = self.env['account.tax'].search([('amount', 'in', tasas), ('type_tax_use', '=', tax_type)])
+                        except:
+                            pass
                     # Buscamos a ver si ya se relaciono el producto
                     domain = [
                         ('sat_id', '=', clave_prod_serv),
@@ -278,11 +271,10 @@ class AccountEdiApiDownload(models.Model):
                         'total_amount': importe,
                         'downloaded_invoice_id': False,
                         'product_rel': product_id.id if product_id else False,
-                        'tax_id': tax_elm.ids
+                        'tax_id': tax_elm.ids if tax_elm else False,
                     }
                     conceptos_list.append(concepto_info)
                 return conceptos_list
-
 
         cer = self._get_default_certificates()
         RFC = self._get_default_vat()
@@ -299,15 +291,10 @@ class AccountEdiApiDownload(models.Model):
         token = auth.obtener_token()
         descarga = SolicitaDescarga(fiel)
 
-        if(self.cfdi_type == 'emitidos'):
-            # EMITIDOS
-            # print("Token: "+token)
-            # print("RFC: "+RFC)
-            
+        if(self.cfdi_type == 'emitidos'):            
             solicitud = descarga.solicitar_descarga(
                 token, RFC, FECHA_INICIAL, FECHA_FINAL, rfc_emisor=RFC, tipo_solicitud='CFDI')
         else:
-            # RECIBIDOS
             solicitud = descarga.solicitar_descarga(
                 token, RFC, FECHA_INICIAL, FECHA_FINAL, rfc_receptor=RFC, tipo_solicitud='CFDI' )
 
@@ -327,7 +314,7 @@ class AccountEdiApiDownload(models.Model):
             # 6, Vencida
 
             if estado_solicitud <= 2:
-                # Estado aceptado, esperar 40 segundos y volver a verificar
+                # Estado aceptado, esperar n segundos y volver a verificar
                 time.sleep(30)
                 continue
 
@@ -341,7 +328,6 @@ class AccountEdiApiDownload(models.Model):
                 for paquete in verificacion['paquetes']:
                     descarga = DescargaMasiva(fiel)
                     descarga = descarga.descargar_paquete(token, RFC, paquete)
-
                     # Decodificar los datos Base64
                     datos_binarios = base64.b64decode(descarga['paquete_b64'])
                     zipData = BytesIO()
@@ -384,7 +370,6 @@ class AccountEdiApiDownload(models.Model):
                             'emission_date_str'
                             'stamp_date'
                             """
-
                             # Buscar el partner
                             if(self.cfdi_type == 'emitidos'):
                                 partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('customer_rfc'))], limit=1)
@@ -414,9 +399,7 @@ class AccountEdiApiDownload(models.Model):
                             if products:
                                 created_products = self.env['account.edi.downloaded.xml.sat.products'].create(products)
                                 vals['downloaded_product_id'] = created_products
-
                             xml_sat_ids.append((0, 0, vals))
-                
                 self.write({'xml_sat_ids': xml_sat_ids,'state': 'imported'})
                 break
 
@@ -437,5 +420,3 @@ class DownloadedXmlSatProducts(models.Model):
         'account.edi.downloaded.xml.sat',
         string='Downloaded product ID',
         ondelete="cascade")
-        
-

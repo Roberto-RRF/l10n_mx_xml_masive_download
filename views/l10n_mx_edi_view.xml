@@ -11,8 +11,6 @@
                     <field name="partner_id"/>
                     <field name="invoice_id"/>
                     <field name="payment_method"/>
-                    <field name="xml_file" filename="xml_file_name" invisible="1"/>
-                    <field name="xml_file_name" invisible="1"/>
                     <field name="cfdi_type"/>
                     <field name="document_type"/>
                     <field name="state"/>
@@ -30,8 +28,8 @@
             <field name="arch" type="xml">
                 <form string="XML SAT" create="0">
                     <header>
-                        <button string="Importar Factura" name="action_import_invoice" type="object" class="oe_highlight" attrs="{'invisible': [('imported','==',True)]}"/> 
-                        <button string="Adjuntar complemento" name="action_add_payment" type="object" class="oe_highlight" attrs="{'invisible': [('document_type', '!=', 'P')]}"/> 
+                        <button string="Importar Factura" name="action_import_invoice" type="object" class="oe_highlight" invisible="imported==True"/> 
+                        <button string="Adjuntar complemento" name="action_add_payment" type="object" class="oe_highlight" invisible="document_type!='P'"/> 
                         <field name="state" widget="statusbar" statusbar_visible="not_imported,draft,posted,cancel,error_relating"/>
                     </header>
                     <sheet>
@@ -95,7 +93,7 @@
             <field name="arch" type="xml">
                 <form>
                     <header>
-                        <button name="action_download" string="Import" class="oe_highlight" type="object" attrs="{'invisible': [('state','!=','not_imported')]}"/>             
+                        <button name="action_download" string="Import" class="oe_highlight" type="object" invisible="state!='not_imported'" />             
                         <field name="state" widget="statusbar" statusbar_visible="not_imported,imported,error"/>
                     </header>
                     <sheet>
@@ -106,11 +104,11 @@
                         </div>
                         <h1>Descargar XMLs del SAT</h1>
                         <group >
-                                <field name="vat" attrs="{'readonly': [('state','!=','not_imported')]}"/>
+                                <field name="vat" readonly="state!='not_imported'"/>
                                 <field name="company_id" options="{'no_open' : True}"/>
-                                <field name="cfdi_type" attrs="{'readonly': [('state','!=','not_imported')]}"/>
-                                <field name="date_start" attrs="{'readonly': [('state','!=','not_imported')]}"/>
-                                <field name="date_end" attrs="{'readonly': [('state','!=','not_imported')]}"/>
+                                <field name="cfdi_type" readonly="state!='not_imported'"/>
+                                <field name="date_start" readonly="state!='not_imported'"/>
+                                <field name="date_end" readonly="state!='not_imported'"/>
                         </group>
                     </sheet>
                 </form>

@@ -27,8 +27,6 @@ class AccountMove(models.Model):
                     pass
             else:
                 record.stored_sat_uuid = False
-        
-
 
     @api.onchange('state')
     def _onchange_update_downloaded_xml_record(self):
@@ -50,7 +48,7 @@ class AccountMove(models.Model):
                 download.write({'state': 'error'})
 
     def generate_pdf_attatchment(self):
-        pdf = self.env.ref('account.account_invoices')._render_qweb_pdf([self.id])
+        pdf = self.env.ref('account.account_invoices')._render_qweb_pdf('account.report_invoice',self.id)
         b64_pdf = base64.b64encode(pdf[0])
 
         ir_values = {
@@ -145,7 +143,6 @@ class AccountMove(models.Model):
             'bank_account': cfdi_node.get('NumCtaPago'),
             'sello': cfdi_node.get('sello', cfdi_node.get('Sello', 'No identificado')),
             'sello_sat': tfd_node is not None and tfd_node.get('selloSAT', tfd_node.get('SelloSAT', 'No identificado')),
-            'cadena': tfd_node is not None and get_cadena(tfd_node, self._l10n_mx_edi_get_cadena_xslts()[0]) or get_cadena(cfdi_node, self._l10n_mx_edi_get_cadena_xslts()[1]),
             'certificate_number': cfdi_node.get('noCertificado', cfdi_node.get('NoCertificado')),
             'certificate_sat_number': tfd_node is not None and tfd_node.get('NoCertificadoSAT'),
             'expedition': cfdi_node.get('LugarExpedicion'),

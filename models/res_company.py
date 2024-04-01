@@ -13,7 +13,12 @@ class ResCompany(models.Model):
         string='FIEL (MX)',
         domain=[('l10n_mx_fiel', '=', True),])
     
-    l10n_mx_edi_certificate_ids = fields.Many2many('l10n_mx_edi.certificate',
-    string='Certificates (MX)', domain=[('l10n_mx_fiel', '=', False)],)
+    l10n_mx_edi_certificate_ids = fields.One2many(
+        comodel_name='l10n_mx_edi.certificate',
+        inverse_name='company_id',
+        string='Certificates (MX)',
+        domain=[('l10n_mx_fiel', '=', False)],)
+        
+        
 
     
