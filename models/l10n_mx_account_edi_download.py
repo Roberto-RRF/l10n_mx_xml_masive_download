@@ -98,7 +98,7 @@ class DownloadedXmlSat(models.Model):
                 'l10n_mx_edi_payment_policy': root.attrib.get('MetodoPago'),
                 'l10n_mx_edi_payment_method_id': self.env['l10n_mx_edi.payment.method'].search([('code', '=', root.attrib.get('FormaPago'))]).id,
                 'currency_id': self.env['res.currency'].search([('name', '=', root.attrib.get('Moneda'))],limit=1).id,
-                'l10n_edi_created_imported_from_sat': True,
+                'l10n_edi_imported_from_sat': True,
             }
 
             for concepto in item.downloaded_product_id:
@@ -110,9 +110,13 @@ class DownloadedXmlSat(models.Model):
                     'price_unit': concepto.unit_value,
                     'credit': concepto.total_amount,
                     'tax_ids': [(6, 0, [concepto.tax_id.id])],
+                    'l10n_edi_product_imported_from_sat': True,
+                    'downloaded_product_rel': concepto.id, 
                 }))
             account_move = self.env['account.move'].create(account_move_dict)
             item.write({'invoice_id': account_move.id, 'state': 'draft'})
+
+            
             
             # Generate pdf and xml attatchments
             account_move.generate_pdf_attatchment()
@@ -419,3 +423,4 @@ class DownloadedXmlSatProducts(models.Model):
         'account.edi.downloaded.xml.sat',
         string='Downloaded product ID',
         ondelete="cascade")
+    

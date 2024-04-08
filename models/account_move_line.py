@@ -1,9 +1,10 @@
 from odoo import api, models, fields
+from odoo.exceptions import UserError
 
 class AccountInvoice(models.Model):
     _inherit = "account.move"
 
-    l10n_edi_created_imported_from_sat = fields.Boolean(
+    l10n_edi_imported_from_sat = fields.Boolean(
         "Created with DMS?", copy=False, help="Is market if the document was created with DMS."
     )
 
@@ -55,10 +56,20 @@ class AccountInvoice(models.Model):
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
+    l10n_edi_product_imported_from_sat = fields.Boolean('Imported from SAT API', default=False)
+    downloaded_product_rel = fields.Many2one('account.edi.downloaded.xml.sat.products', string='Downloaded Product')
+
+    @api.onchange('product_id')
+    def update_downloaded_product(self):
+        print("\n\n\n Cambie \n\n\n")
+        if self.downloaded_product_rel:
+            self.downloaded_product_rel.write({'product_rel':self.product_id.id})
+            
+
     @api.depends("product_id")
     def _compute_product_uom_id(self):
         dms = self.filtered(
-            lambda l: l.move_id.l10n_edi_created_imported_from_sat
+            lambda l: l.move_id.l10n_edi_imported_from_sat
             and l.product_id
             and l.display_type not in ("line_section", "line_note")
             and l._origin
@@ -68,7 +79,7 @@ class AccountMoveLine(models.Model):
     @api.depends("product_id", "product_uom_id")
     def _compute_price_unit(self):
         dms = self.filtered(
-            lambda l: l.move_id.l10n_edi_created_imported_from_sat
+            lambda l: l.move_id.l10n_edi_imported_from_sat
             and l.product_id
             and l.display_type not in ("line_section", "line_note")
             and l._origin
@@ -78,7 +89,7 @@ class AccountMoveLine(models.Model):
     @api.depends("product_id", "product_uom_id")
     def _compute_tax_ids(self):
         dms = self.filtered(
-            lambda l: l.move_id.l10n_edi_created_imported_from_sat
+            lambda l: l.move_id.l10n_edi_imported_from_sat
             and l.product_id
             and l.display_type not in ("line_section", "line_note")
             and l._origin
