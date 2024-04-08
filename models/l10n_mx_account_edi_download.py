@@ -51,7 +51,7 @@ class DownloadedXmlSat(models.Model):
         string='Status',
         default='draft',
     )
-    payment_method = fields.Selection([('PPD','PPD'),('PUE','PUE')], string='Metodo de Pago', required=True)
+    payment_method = fields.Selection([('PPD','PPD'),('PUE','PUE')], string='Metodo de Pago')
     sub_total = fields.Float(string="Sub Total", required=True)
     amount_total = fields.Float(string="Total", required=True)
     document_type = fields.Selection([
@@ -98,7 +98,7 @@ class DownloadedXmlSat(models.Model):
                 'l10n_mx_edi_payment_policy': root.attrib.get('MetodoPago'),
                 'l10n_mx_edi_payment_method_id': self.env['l10n_mx_edi.payment.method'].search([('code', '=', root.attrib.get('FormaPago'))]).id,
                 'currency_id': self.env['res.currency'].search([('name', '=', root.attrib.get('Moneda'))],limit=1).id,
-                'xml_imported': True,
+                'l10n_edi_created_imported_from_sat': True,
             }
 
             for concepto in item.downloaded_product_id:
@@ -233,7 +233,6 @@ class AccountEdiApiDownload(models.Model):
                                     # Transform tasa, example: 0.160000 -> 16
                                     tasa = float(traslado.get('TasaOCuota')) * 100
                                     tasas.append(tasa)
-
                             retenciones = impuestos.find('.//cfdi:Retenciones', namespaces=ns)
                             if retenciones is not None:
                                 for retencion in retenciones.findall('.//cfdi:Retencion', namespaces=ns):
