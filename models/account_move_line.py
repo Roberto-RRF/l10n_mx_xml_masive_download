@@ -56,12 +56,10 @@ class AccountInvoice(models.Model):
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    l10n_edi_product_imported_from_sat = fields.Boolean('Imported from SAT API', default=False)
     downloaded_product_rel = fields.Many2one('account.edi.downloaded.xml.sat.products', string='Downloaded Product')
 
     @api.onchange('product_id')
     def update_downloaded_product(self):
-        print("\n\n\n Cambie \n\n\n")
         if self.downloaded_product_rel:
             self.downloaded_product_rel.write({'product_rel':self.product_id.id})
             

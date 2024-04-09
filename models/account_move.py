@@ -7,8 +7,8 @@ from lxml.objectify import fromstring
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
-    xml_imported = fields.Boolean(string="XML Imported", default=False)
     stored_sat_uuid = fields.Char(compute='_get_uuid_from_xml_attachment', string="CFDI UUID", store=True, index=True, default=False)
+    xml_imported_id = fields.Many2one('account.edi.downloaded.xml.sat', string="Downloaded XML")
 
     """
     Method created to have a field that stores the UUID of the CFDI in the account.move model
@@ -28,11 +28,10 @@ class AccountMove(models.Model):
             else:
                 record.stored_sat_uuid = False
 
-    @api.onchange('state')
-    def _onchange_update_downloaded_xml_record(self):
-        downloaded_xml = self.env['account.edi.downloaded.xml.sat'].search([('invoice_id', '=', self.id)], limit=1)
-        if downloaded_xml:
-            downloaded_xml.write({'state': self.state})        
+    @api.constrains('state')
+    def onchange_update_downloaded_xml_record(self):
+        if self.xml_imported_id:
+            self.xml_imported_id.write({'state':self.state})   
 
     # This method was moved to DownloadedXmlSat --> delete later 
     def relate_download(self):
