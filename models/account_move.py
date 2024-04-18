@@ -46,21 +46,22 @@ class AccountMove(models.Model):
             else:
                 download.write({'state': 'error'})
 
-    def generate_pdf_attatchment(self):
-        pdf = self.env.ref('account.account_invoices')._render_qweb_pdf('account.report_invoice',self.id)
-        b64_pdf = base64.b64encode(pdf[0])
+    def create_edi_document_from_attatchment(self, uuid):
+        edi = self.env['l10n_mx_edi.document']
+        edi_content = self.attachment_ids.filtered(lambda m: m.mimetype == 'application/xml')
+        if edi_content:
+            edi_data = {
+                'state' : 'invoice_sent',
+                'datetime': fields.Datetime.now(),
+                'attachment_uuid':uuid,
+                'attachment_id':edi_content.id,
+                'move_id': self.id,
+            }
+            new_edi_doc = edi.create(edi_data)
 
-        ir_values = {
-            'name': 'Invoice ' + self.name,
-            'type': 'binary',
-            'datas': b64_pdf,
-            'store_fname': 'Invoice ' + self.name + '.pdf',
-            'mimetype': 'application/pdf',
-            'res_model': 'account.move',
-            'res_id': self.id,
-        }
-       
-        self.env['ir.attachment'].create(ir_values)
+            # Asociar las facturas
+            new_edi_doc.invoice_ids = [(6, 0, [self.id])]  
+
 
     # This methos was taken from odoo 16.0 
     def _l10n_mx_edi_decode_cfdi(self, cfdi_data=None):

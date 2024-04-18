@@ -62,7 +62,7 @@ class AccountMoveLine(models.Model):
     def update_downloaded_product(self):
         if self.downloaded_product_rel:
             self.downloaded_product_rel.write({'product_rel':self.product_id.id})
-            
+     
 
     @api.depends("product_id")
     def _compute_product_uom_id(self):

@@ -14,6 +14,7 @@
                     <field name="cfdi_type"/>
                     <field name="document_type"/>
                     <field name="state"/>
+                    <field name="stamp_date"/>
                     <field name="sub_total"/>
                     <field name="amount_total"/>
                 </tree>
@@ -37,13 +38,14 @@
                             <group>
                                 <field name="document_type" invisible="1"/> 
                                 <field name="imported" invisible="1"/>
-                                <field name="name"/>
-                                <field name="company_id"/>
+                                <field name="name" readonly="1"/>
+                                <field name="company_id" readonly="1"/>
                                 <field name="partner_id"/>
-                                <field name="invoice_id"/>
-                                <field name="xml_file" filename="xml_file_name"/>
+                                <field name="invoice_id" readonly="1"/>
+                                <field name="xml_file" filename="xml_file_name" readonly="1" />
                                 <field name="xml_file_name" invisible="1"/>
-                                <field name="cfdi_type"/>
+                                <field name="cfdi_type" readonly="1" />
+                                <field name="stamp_date" readonly="1"/>
                             </group>
                         </group>
 

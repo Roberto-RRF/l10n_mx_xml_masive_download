@@ -8,9 +8,39 @@ import zipfile
 import time
 from cfdiclient import (Autenticacion, DescargaMasiva, Fiel, SolicitaDescarga,
                         VerificaSolicitudDescarga)
+from odoo.addons.l10n_mx_edi.models.l10n_mx_edi_document import (
+    CFDI_CODE_TO_TAX_TYPE,
+)
 from io import BytesIO
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from difflib import SequenceMatcher 
+
+USO_CFDI  = [
+    ("G01", "Adquisición de mercancías"),
+    ("G02", "Devoluciones, descuentos o bonificaciones"),
+    ("G03", "Gastos en general"),
+    ("101", "Construcciones"),
+    ("102", "Mobiliario y equipo de oficina por inversiones"),
+    ("103", "Equipo de transporte"),
+    ("104", "Equipo de cómputo y accesorios"),
+    ("105", "Dados, troqueles, moldes, matrices y herramental"),
+    ("106", "Comunicaciones telefónicas"),
+    ("107", "Comunicaciones satelitales"),
+    ("108", "Otra maquinaria y equipo"),
+    ("D01", "Honorarios médicos, dentales y gastos hospitalarios"),
+    ("D02", "Gastos médicos por incapacidad o discapacidad"),
+    ("D03", "Gastos funerales"),
+    ("D04", "Donativos"),
+    ("D05", "Intereses reales efectivamente pagados por créditos hipotecarios (casa habitación)"),
+    ("D06", "Aportaciones voluntarias al SAR"),
+    ("D07", "Primas por seguros de gastos médicos"),
+    ("D08", "Gastos de transportación escolar obligatoria"),
+    ("D09", "Depósitos en cuentas para el ahorro, primas que tengan como base planes de pensiones"),
+    ("D10", "Pagos por servicios educativos (colegiaturas)"),
+    ("CP01", "Pagos"),
+    ("CN01", "Nómina"),
+    ("S01", "Sin Efectos Fiscales"),
+]
  
 #ydktJDzg4Fr9nh
 #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
@@ -26,7 +56,7 @@ class DownloadedXmlSat(models.Model):
     partner_id = fields.Many2one('res.partner') # Cliente/Proveedor
     invoice_id = fields.Many2one('account.move') # Factura
     xml_file = fields.Binary(string='Archivo XML') # Archivo XML
-    cfdi_type = fields.Selection([('emitidos', 'Emitidos'), ('recibidos', 'Recibidos')], string='Tipo', required=True, default='emitidos') 
+    cfdi_type = fields.Selection([('recibidos', 'Recibidos'),('emitidos', 'Emitidos'), ], string='Tipo', required=True, default='emitidos') 
     batch_id = fields.Many2one(
         comodel_name='account.edi.api.download',
         string='Batch',
@@ -37,9 +67,11 @@ class DownloadedXmlSat(models.Model):
         ondelete="cascade",
         check_company=True,
     )
-    stamp_date =  fields.Char(string="Fecha", required=True)
+    stamp_date =  fields.Date(string="Fecha de Estampado", required=True)
     xml_file_name = fields.Char(string='Nombre archivo XML')
-    state = fields.Selection([('draft', 'Draft'), ('done', 'Done')], string='State', default='draft')
+    serie = fields.Char(string="Serie Factura")
+    folio = fields.Char(string="Folio Factura")
+    divisa = fields.Char(string="Divisa en Factura")
     state = fields.Selection(
         selection=[
             ('not_imported', 'No Importado'),
@@ -61,6 +93,7 @@ class DownloadedXmlSat(models.Model):
         ('N', 'Nomina'),
         ('P', 'Pago'),
     ], string='Tipo de Documento')
+    cfdi_usage = fields.Selection(USO_CFDI, string="Uso CFDI")
     imported = fields.Boolean(string="Importado", default=False)
     downloaded_product_id = fields.One2many(
         'account.edi.downloaded.xml.sat.products',
@@ -75,29 +108,50 @@ class DownloadedXmlSat(models.Model):
             move = self.env['account.move'].search([('stored_sat_uuid', '=', item.name)], limit=1)
             if move:
                 item.write({'invoice_id': move.id, 'state': move.state})
+    
+    def generate_pdf_attatchment(self, account_id):
+        datas = {
+            'partner_id':self.partner_id,
+            'cfdi_type':self.cfdi_type,
+            'company_id':self.company_id,
+            'payment_method':self.payment_method,
+            'serie':self.serie,
+            'folio':self.folio, 
+            'divisa':self.divisa,
+            'name':self.name,
+            'stamp_date':self.stamp_date,
+            'document_type':self.document_type,
+            'downloaded_product_id':self.downloaded_product_id
+
+        }
+        result, format = self.env["ir.actions.report"]._render_qweb_pdf('l10n_mx_xml_masive_download.report_product', [self.id], datas)
+
+        result = base64.b64encode(result)
+
+        ir_values = {
+            'name': 'Invoice ' + self.name,
+            'type': 'binary',
+            'datas': result,
+            'store_fname': 'Factura ' + self.name + '.pdf',
+            'mimetype': 'application/pdf',
+            'res_model': 'account.move',
+            'res_id': account_id,
+        }
+       
+        self.env['ir.attachment'].create(ir_values)
 
     def action_import_invoice(self):
         for item in self:
-            root = ET.fromstring(base64.b64decode(item.xml_file))
-            receptor = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'})
-            if root.attrib.get('Serie') and root.attrib.get('Folio'):
-                ref = root.attrib.get('Serie')+"/"+root.attrib.get('Folio')
-            else:
-                ref = False
 
             account_move_dict = {
-                'ref': ref,
+                'ref': self.serie+"/"+self.folio,
                 'invoice_date': item.stamp_date,
                 'date': item.stamp_date,
-                'move_type':'in_invoice',
+                'move_type':'in_invoice' if self.cfdi_type == 'recividos' else 'out_invoice',
                 'partner_id': item.partner_id.id,
                 'company_id': item.company_id.id,
                 'invoice_line_ids': [],
-                'l10n_mx_edi_cfdi_uuid': item.name,
-                'l10n_mx_edi_usage': receptor.attrib.get('UsoCFDI'),
-                'l10n_mx_edi_payment_policy': root.attrib.get('MetodoPago'),
-                'l10n_mx_edi_payment_method_id': self.env['l10n_mx_edi.payment.method'].search([('code', '=', root.attrib.get('FormaPago'))]).id,
-                'currency_id': self.env['res.currency'].search([('name', '=', root.attrib.get('Moneda'))],limit=1).id,
+                'currency_id': self.env['res.currency'].search([('name', '=',self.divisa)],limit=1).id,
                 'l10n_edi_imported_from_sat': True,
                 'xml_imported_id': item.id
             }
@@ -110,16 +164,15 @@ class DownloadedXmlSat(models.Model):
                     'quantity': concepto.quantity,
                     'price_unit': concepto.unit_value,
                     'credit': concepto.total_amount,
-                    'tax_ids': [(6, 0, [concepto.tax_id.id])],
+                    'tax_ids': concepto.tax_id,
                     'downloaded_product_rel': concepto.id, 
                 }))
             account_move = self.env['account.move'].create(account_move_dict)
             item.write({'invoice_id': account_move.id, 'state': 'draft'})
 
             
-            
-            # Generate pdf and xml attatchments
-            account_move.generate_pdf_attatchment()
+            self.generate_pdf_attatchment(account_move.id)
+
             attachment_values = {
                 'name': self.xml_file_name,  # Name of the XML file
                 'datas': self.xml_file,  # Read XML file content
@@ -128,7 +181,8 @@ class DownloadedXmlSat(models.Model):
                 'mimetype': 'application/xml',
             }
             self.env['ir.attachment'].create(attachment_values)
-            item.write({'imported': True})
+            account_move.create_edi_document_from_attatchment(self.name)
+            #item.write({'imported': True})
 
     def action_add_payment(self):
         payment = self.env['account.payment'].search([('stored_sat_uuid','=',self.name)], limit=1)
@@ -203,11 +257,36 @@ class AccountEdiApiDownload(models.Model):
         }
         
     def action_download(self):
+
+        """
+        Function that recives two strings and returns a number 
+        from 0 to 1 depending on how similar they are. 
+        Used to compare descriptions that have dates or numbers
+        """
+        def similar(a, b):
+            return SequenceMatcher(None, a, b).ratio()
+        
+        def _l10n_mx_edi_import_cfdi_get_tax_from_node(self, tax_node, is_withholding=False):
+            amount = float(tax_node.attrib.get('TasaOCuota')) * (-100 if is_withholding else 100)
+            domain = [
+                #*self.env['account.journal']._check_company_domain(company_id),
+                ('amount', '=', amount),
+                ('type_tax_use', '=', 'sale' if self.cfdi_type == 'emitidos' else 'purchase'),
+                ('amount_type', '=', 'percent'),
+            ]
+            tax_type = CFDI_CODE_TO_TAX_TYPE.get(tax_node.attrib.get('Impuesto'))
+            if tax_type:
+                domain.append(('l10n_mx_tax_type', '=', tax_type))
+            taxes = self.env['account.tax'].search(domain, limit=1)
+            if not taxes:
+                raise UserError("No se encotro un impuesto para el siguiente: "+tax_type+" "+str(amount))
+            return taxes[:1]
+
         """  
         Function that extracts the products from the XML
         return: list of dictionaries with the products
         """
-        def get_products(xml_file, recived):
+        def get_products(xml_file):
             root = ET.fromstring(xml_file)
             # Define the namespace used in the XML
             ns = {'cfdi': 'http://www.sat.gob.mx/cfd/4'}
@@ -216,6 +295,7 @@ class AccountEdiApiDownload(models.Model):
             # Initialize an empty list to store dictionaries
             conceptos_list = []
             if conceptos_element is not None:
+
                 # Iterate over cfdi:Concepto elements and extract information
                 for concepto_element in conceptos_element.findall('.//cfdi:Concepto', namespaces=ns):
                     clave_prod_serv = concepto_element.get('ClaveProdServ')
@@ -225,43 +305,36 @@ class AccountEdiApiDownload(models.Model):
                     valor_unitario = concepto_element.get('ValorUnitario')
                     importe = concepto_element.get('Importe')
 
-                    tasas = []
-                    tax_elm = False
+                    taxes = []
+                    taxes_ids = []
                     # Buscamos los impuestos
                     impuestos = concepto_element.find('.//cfdi:Impuestos', namespaces=ns)
                     if impuestos is not None:
-                        try:
-                            traslados = impuestos.find('.//cfdi:Traslados', namespaces=ns)
-                            if traslados is not None:
-                                for traslado in traslados.findall('.//cfdi:Traslado', namespaces=ns):
-                                    # Transform tasa, example: 0.160000 -> 16
-                                    tasa = float(traslado.get('TasaOCuota')) * 100
-                                    tasas.append(tasa)
-                            retenciones = impuestos.find('.//cfdi:Retenciones', namespaces=ns)
-                            if retenciones is not None:
-                                for retencion in retenciones.findall('.//cfdi:Retencion', namespaces=ns):
-                                    tasa = float(retencion.get('TasaOCuota')) * 100
-                                    tasas.append(tasa)
-                            if recived:
-                                tax_type = 'purchase'
-                            else:
-                                tax_type = 'sale'
-
-                            # Buscamos los impuestos
-                            tax_elm = self.env['account.tax'].search([('amount', 'in', tasas), ('type_tax_use', '=', tax_type)])
-                        except:
-                            pass
+                    
+                        traslados = impuestos.find('.//cfdi:Traslados', namespaces=ns)
+                        if traslados is not None:
+                            for traslado in traslados.findall('.//cfdi:Traslado', namespaces=ns):
+                                taxes.append(_l10n_mx_edi_import_cfdi_get_tax_from_node(self, tax_node=traslado, is_withholding=False, ))
+                        retenciones = impuestos.find('.//cfdi:Retenciones', namespaces=ns)
+                        if retenciones is not None:
+                            for retencion in retenciones.findall('.//cfdi:Retencion', namespaces=ns):
+                                taxes.append(_l10n_mx_edi_import_cfdi_get_tax_from_node(self, tax_node=retencion, is_withholding=True))
+                    for tax in taxes: 
+                        taxes_ids.append(tax.id)
                     # Buscamos a ver si ya se relaciono el producto
                     domain = [
                         ('sat_id', '=', clave_prod_serv),
-                        ('description', '=', descripcion), 
                         ('downloaded_invoice_id.partner_id', '!=', False)
                         ]
-                    product_id = self.env['account.edi.downloaded.xml.sat.products'].search(domain, limit=1)
+                    products = self.env['account.edi.downloaded.xml.sat.products'].search(domain, limit=1)
                     
-                    # Si no se encontro el producto, nos aseguramos de que no se relacione
-                    if not product_id.product_rel:
-                        product_id = False
+                    final_product = False
+                    if products:
+                        for product in products:
+                            if similar(descripcion, product.description) > 0.8:
+                                final_product=product.product_rel
+                                break
+
                     
                     
                     # Create a dictionary for each concepto and append it to the list
@@ -273,8 +346,8 @@ class AccountEdiApiDownload(models.Model):
                         'unit_value': valor_unitario,
                         'total_amount': importe,
                         'downloaded_invoice_id': False,
-                        'product_rel': product_id.id if product_id else False,
-                        'tax_id': tax_elm.ids if tax_elm else False,
+                        'product_rel': final_product.id if final_product else False,
+                        'tax_id': taxes_ids if taxes_ids else False,
                     }
                     conceptos_list.append(concepto_info)
                 return conceptos_list
@@ -390,7 +463,11 @@ class AccountEdiApiDownload(models.Model):
                                 'document_type': root.get('TipoDeComprobante'),
                                 'payment_method': cfdi_infos.get('payment_method'),
                                 'sub_total': root.get('SubTotal') if root.get('SubTotal') else '0.0',
-                                'amount_total': cfdi_infos.get('amount_total') if cfdi_infos.get('amount_total') else '0.0'
+                                'amount_total': cfdi_infos.get('amount_total') if cfdi_infos.get('amount_total') else '0.0',
+                                'serie':root.get('Serie'),
+                                'folio':root.get('Folio'),
+                                'divisa':root.get('Moneda'),
+                                'cfdi_usage': cfdi_infos.get('usage'),
                             }
 
                             recived = False
@@ -398,7 +475,7 @@ class AccountEdiApiDownload(models.Model):
                                 recived = True
                             # Creamos los productos del xml
                             # recived: boolean to search type of tax
-                            products = get_products(cfdi_data,recived)
+                            products = get_products(cfdi_data)
                             if products:
                                 created_products = self.env['account.edi.downloaded.xml.sat.products'].create(products)
                                 vals['downloaded_product_id'] = created_products
