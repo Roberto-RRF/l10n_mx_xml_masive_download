@@ -6,3 +6,4 @@ from . import res_company
 from . import l10n_mx_edi_certificate
 from . import account_move
 from . import account_move_line
+from . import account_payment 

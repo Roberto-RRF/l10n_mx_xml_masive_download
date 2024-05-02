@@ -29,8 +29,8 @@
             <field name="arch" type="xml">
                 <form string="XML SAT" create="0">
                     <header>
-                        <button string="Importar Factura" name="action_import_invoice" type="object" class="oe_highlight" invisible="imported==True"/> 
-                        <button string="Adjuntar complemento" name="action_add_payment" type="object" class="oe_highlight" invisible="document_type!='P'"/> 
+                        <button string="Importar Factura" name="action_import_invoice" type="object" class="oe_highlight" invisible="imported==True or document_type=='P'"/> 
+                        <button string="Adjuntar Complemento" name="action_add_payment" type="object" class="oe_highlight" invisible="document_type!='P'"/> 
                         <field name="state" widget="statusbar" statusbar_visible="not_imported,draft,posted,cancel,error_relating"/>
                     </header>
                     <sheet>
@@ -52,7 +52,7 @@
                         <field name="downloaded_product_id" >
 
                             <tree string="Products" editable="bottom" delete="0">
-                                <field name="product_rel" />
+                                <field name="product_rel"/>
                                 <field name="sat_id" readonly="1"/>
                                 <field name="description" readonly="1"/>
                                 <field name="tax_id" readonly="1" widget="many2many_tags"/>

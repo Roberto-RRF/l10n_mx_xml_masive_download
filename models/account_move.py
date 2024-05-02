@@ -60,7 +60,7 @@ class AccountMove(models.Model):
             new_edi_doc = edi.create(edi_data)
 
             # Asociar las facturas
-            new_edi_doc.invoice_ids = [(6, 0, [self.id])]  
+            new_edi_doc.invoice_ids = [(6, 0, [self.id])]  # A lo mejor es aqui, en vez de poner ".invoice_ids" poner payment 
 
 
     # This methos was taken from odoo 16.0 

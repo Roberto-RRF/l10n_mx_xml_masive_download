@@ -94,6 +94,8 @@
                         </table>
 
                         <h5>Subtotal: <span t-field="o.sub_total"/></h5>
+                        <h5>Impuestos: <span t-field="o.total_impuestos"/></h5>
+                        <h5>Retenciones: -<span t-field="o.total_retenciones"/></h5>
                         <h5>Total: <span t-field="o.amount_total"/></h5>
 
 
