@@ -207,22 +207,34 @@ class DownloadedXmlSat(models.Model):
             }
         res = self.env['ir.attachment'].create(attachment_values)
 
-        payment = self.env['account.payment'].search(['id','=',4805])
+        payment = self.env['account.payment'].search([('id','=',4805)])
 
         edi = self.env['l10n_mx_edi.document']
    
         edi_data = {
-            'state' : 'payment_sent',
-            'datetime': fields.Datetime.now(),
-            'attachment_uuid':'80BEF511-0633-5AAB-B187-1D0892FDD498',
-            'attachment_id':res.id,
-            'move_id': 64591,
-        }
+                       # 'name' : uuid_name+'.xml',
+                       'state' : 'payment_sent',
+                       'sat_state' : 'not_defined',
+                       'message': '',
+                       'datetime': fields.Datetime.now(),
+                       'attachment_uuid': self.name,
+                       'attachment_id' : res.id,
+                       'move_id'    : payment.move_id.id,
+                    }
         new_edi_doc = edi.create(edi_data)
-        payment.write({'l10n_mx_edi_payment_document_ids':new_edi_doc.id})
-        # Asociar las facturas
-        new_edi_doc.invoice_ids = [(6, 0, [4808])]  
 
+        #### Asociando las Facturas ####
+        invoice_rel_ids = []
+        #### Facturas de Cliente ####
+        if payment.reconciled_invoice_ids:
+            invoice_rel_ids = payment.reconciled_invoice_ids.ids
+        #### Facturas de Proveedor ####
+        if payment.reconciled_bill_ids:
+            invoice_rel_ids = payment.reconciled_bill_ids.ids
+
+        new_edi_doc.invoice_ids = [(6,0, invoice_rel_ids)]
+
+        # payment.write({'l10n_mx_edi_payment_document_ids':new_edi_doc.id})
         
 """        # Obtenemos los 'IdDocumento' de las facturas relacionadas
 
