@@ -118,14 +118,6 @@ class DownloadedXmlSat(models.Model):
                 item.write({'invoice_id': move.id, 'state': move.state})
     
     def generate_pdf_attatchment(self, account_id):
-        
-
-    
-
-        
-
-    
-
         datas = {
             'partner_id':self.partner_id,
             'cfdi_type':self.cfdi_type,
@@ -212,8 +204,6 @@ class DownloadedXmlSat(models.Model):
             #item.write({'imported': True})
 
     def action_add_payment(self):
-        
-        attachment_values = {
         
         attachment_values = {
                 'name': self.xml_file_name,  # Name of the XML file
