@@ -4,10 +4,8 @@ from odoo.exceptions import UserError, ValidationError
 from lxml import etree
 from lxml.objectify import fromstring
 import base64
-import zipfile
-import time
-from cfdiclient import (Autenticacion, DescargaMasiva, Fiel, SolicitaDescarga,
-                        VerificaSolicitudDescarga)
+import requests
+
 from odoo.addons.l10n_mx_edi.models.l10n_mx_edi_document import (
     CFDI_CODE_TO_TAX_TYPE,
 )
@@ -19,11 +17,10 @@ USO_CFDI  = [
     ("G01", "Adquisición de mercancías"),
     ("G02", "Devoluciones, descuentos o bonificaciones"),
     ("G03", "Gastos en general"),
+    ("I01", "Construcciones"),
     ("101", "Construcciones"),
-    ("102", "Mobiliario y equipo de oficina por inversiones"),
-    ("103", "Equipo de transporte"),
-    ("104", "Equipo de cómputo y accesorios"),
-    ("I04", "Equipo de cómputo y accesorios"),    
+    ("I02", "Mobiliario y equipo de oficina por inversiones"),
+    ("I03", "Equipo de transporte"),
     ("I04", "Equipo de cómputo y accesorios"),    
     ("105", "Dados, troqueles, moldes, matrices y herramental"),
     ("106", "Comunicaciones telefónicas"),
@@ -69,7 +66,7 @@ class DownloadedXmlSat(models.Model):
         ondelete="cascade",
         check_company=True,
     )
-    stamp_date =  fields.Date(string="Fecha de Estampado", required=True)
+    stamp_date =  fields.Date(string="Fecha de Estampado")
     xml_file_name = fields.Char(string='Nombre archivo XML')
     serie = fields.Char(string="Serie Factura")
     folio = fields.Char(string="Folio Factura")
@@ -204,52 +201,64 @@ class DownloadedXmlSat(models.Model):
             #item.write({'imported': True})
 
     def action_add_payment(self):
-        
-        attachment_values = {
-                'name': self.xml_file_name,  # Name of the XML file
-                'datas': self.xml_file,  # Read XML file content
-                'res_model': 'account.payment',
-                'res_id': 4805,
-                'res_model': 'account.payment',
-                'res_id': 4805,
-                'mimetype': 'application/xml',
-            }
-        res = self.env['ir.attachment'].create(attachment_values)
-
-        payment = self.env['account.payment'].search(['id','=',4805])
-
-        edi = self.env['l10n_mx_edi.document']
-   
-        edi_data = {
-            'state' : 'payment_sent',
-            'datetime': fields.Datetime.now(),
-            'attachment_uuid':'80BEF511-0633-5AAB-B187-1D0892FDD498',
-            'attachment_id':res.id,
-            'move_id': 64591,
-        }
-        new_edi_doc = edi.create(edi_data)
-        payment.write({'l10n_mx_edi_payment_document_ids':new_edi_doc.id})
-        # Asociar las facturas
-        new_edi_doc.invoice_ids = [(6, 0, [4808])]  
-
-        
-"""        # Obtenemos los 'IdDocumento' de las facturas relacionadas
-
-        # Parsear el archivo XML
+        # Buscar factura
         root = ET.fromstring(base64.b64decode(self.xml_file))
-
-        # Definir el namespace
         namespace = {'cfdi': 'http://www.sat.gob.mx/cfd/4', 'pago20': 'http://www.sat.gob.mx/Pagos20'}
-
-        # Encontrar todos los elementos DoctoRelacionado y extraer los valores de IdDocumento
         id_documentos = []
 
         for docto_relacionado in root.findall('.//pago20:DoctoRelacionado', namespace):
             id_documento = docto_relacionado.get('IdDocumento')
             id_documentos.append(id_documento)
-        
-        # Buscamos los documentos en las facturas
-        moves = self.env['account.move'].search([('l10n_mx_edi_cfdi_uuid','in', id_documentos)])"""
+
+        moves = self.env['account.move'].search([('l10n_mx_edi_cfdi_uuid','in', id_documentos)])
+
+        # Si hay factura, verificar si el estatus es in_payment 
+
+        if moves:
+            for move in moves:
+                if move.payment_state == 'in_payment':
+                    print("Adentro")
+                    # Buscar el Id del pago
+                    
+                    payments = self.env['account.payment'].search([('reconciled_invoice_ids','=',move.id)])
+                    for payment in payments:
+                        attachment_values = {
+                                'name': self.xml_file_name,  # Name of the XML file
+                                'datas': self.xml_file,  # Read XML file content
+                                'res_model': 'account.payment',
+                                'res_id': payment.id,
+                                'mimetype': 'application/xml',
+                            }
+                        
+                        self.write({'invoice_id':move.id, 'imported':True})
+                        res = self.env['ir.attachment'].create(attachment_values)
+
+                        edi = self.env['l10n_mx_edi.document']
+    
+                        edi_data = {
+                                    # 'name' : uuid_name+'.xml',
+                                    'state' : 'payment_sent',
+                                    'sat_state' : 'not_defined',
+                                    'message': '',
+                                    'datetime': fields.Datetime.now(),
+                                    'attachment_uuid': self.name,
+                                    'attachment_id' : res.id,
+                                    'move_id'    : payment.move_id.id,
+                                    }
+                        new_edi_doc = edi.create(edi_data)
+
+                        #### Asociando las Facturas ####
+                        invoice_rel_ids = []
+                        #### Facturas de Cliente ####
+                        if payment.reconciled_invoice_ids:
+                            invoice_rel_ids = payment.reconciled_invoice_ids.ids
+                        #### Facturas de Proveedor ####
+                        if payment.reconciled_bill_ids:
+                            invoice_rel_ids = payment.reconciled_bill_ids.ids
+
+                        new_edi_doc.invoice_ids = [(6,0, invoice_rel_ids)]
+        else: 
+            raise UserError("Error adjuntando pago, verifique que la factura exista y tenga un pago creado")
 
 
 
@@ -288,13 +297,6 @@ class AccountEdiApiDownload(models.Model):
     )
     xml_count = fields.Integer(string='Delivery Orders', compute='_compute_xml_ids')
 
-    def _get_default_certificates(self):
-        cer = self.env.company.l10n_mx_edi_fiel_ids.filtered(lambda x: x.l10n_mx_fiel == True)
-
-        if not cer:
-            raise UserError("No existe un certificado activo para el periodo actual")
-        else: 
-            return cer
         
     @api.depends('xml_sat_ids')
     def _compute_xml_ids(self):
@@ -340,24 +342,7 @@ class AccountEdiApiDownload(models.Model):
                     raise UserError("No se encotro un impuesto para el siguiente: "+tax_type+" "+str(amount))
                 return taxes[:1]
             except: 
-                return False 
-            try: 
-                amount = float(tax_node.attrib.get('TasaOCuota')) * (-100 if is_withholding else 100)
-                domain = [
-                    #*self.env['account.journal']._check_company_domain(company_id),
-                    ('amount', '=', amount),
-                    ('type_tax_use', '=', 'sale' if self.cfdi_type == 'emitidos' else 'purchase'),
-                    ('amount_type', '=', 'percent'),
-                ]
-                tax_type = CFDI_CODE_TO_TAX_TYPE.get(tax_node.attrib.get('Impuesto'))
-                if tax_type:
-                    domain.append(('l10n_mx_tax_type', '=', tax_type))
-                taxes = self.env['account.tax'].search(domain, limit=1)
-                if not taxes:
-                    raise UserError("No se encotro un impuesto para el siguiente: "+tax_type+" "+str(amount))
-                return taxes[:1]
-            except: 
-                return False 
+                return False  
 
         """  
         Function that extracts the products from the XML
@@ -386,8 +371,6 @@ class AccountEdiApiDownload(models.Model):
                     taxes_ids = []
                     total_impuestos = 0
                     total_retenciones = 0
-                    total_impuestos = 0
-                    total_retenciones = 0
                     # Buscamos los impuestos
                     impuestos = concepto_element.find('.//cfdi:Impuestos', namespaces=ns)
                     if impuestos is not None:
@@ -397,16 +380,18 @@ class AccountEdiApiDownload(models.Model):
                             for traslado in traslados.findall('.//cfdi:Traslado', namespaces=ns):
                                 total_impuestos += float(traslado.get('Importe')) if traslado.get('Importe') else 0
                                 taxes.append(_l10n_mx_edi_import_cfdi_get_tax_from_node(self, tax_node=traslado, is_withholding=False))
-                                total_impuestos += float(traslado.get('Importe')) if traslado.get('Importe') else 0
-                                taxes.append(_l10n_mx_edi_import_cfdi_get_tax_from_node(self, tax_node=traslado, is_withholding=False))
                         retenciones = impuestos.find('.//cfdi:Retenciones', namespaces=ns)
                         if retenciones is not None:
                             for retencion in retenciones.findall('.//cfdi:Retencion', namespaces=ns):
                                 total_retenciones += float(retencion.get('Importe')) if retencion.get('Importe') else 0
-                                total_retenciones += float(retencion.get('Importe')) if retencion.get('Importe') else 0
                                 taxes.append(_l10n_mx_edi_import_cfdi_get_tax_from_node(self, tax_node=retencion, is_withholding=True))
+                    
                     for tax in taxes: 
-                        taxes_ids.append(tax.id)
+                        try:
+                            if tax.id:
+                                taxes_ids.append(tax.id)
+                        except AttributeError as e:
+                            print("\n\n\n\n\n\n\n"+str(tax))
                     # Buscamos a ver si ya se relaciono el producto
                     domain = [
                         ('sat_id', '=', clave_prod_serv),
@@ -437,141 +422,83 @@ class AccountEdiApiDownload(models.Model):
                     }
                     conceptos_list.append(concepto_info)
                 return (conceptos_list, total_impuestos, total_retenciones)
-                return (conceptos_list, total_impuestos, total_retenciones)
 
-        cer = self._get_default_certificates()
-        RFC = self._get_default_vat()
-        FIEL_CER = base64.b64decode(cer.content) 
-        FIEL_CER = base64.b64decode(cer.content) 
-        FIEL_KEY = base64.b64decode(cer.key)
-        FIEL_PAS = cer.password
-        FECHA_INICIAL = self.date_start
-        FECHA_FINAL = self.date_end
+        def fetch_cfdi_data(RFC, startDate, endDate, xml_type):
+            base_url = 'https://xmlsat.anfepi.com/get-cfdis'
+            url = f"{base_url}?RFC={RFC}&startDate={startDate}&endDate={endDate}&xml_type={xml_type}"
 
+            try:
+                response = requests.get(url)
+                if response.status_code == 200:
+                    return response.json()  # Assuming the response is JSON
+                else:
+                    # Handle other status codes if needed
+                    print("Request failed with status code:", response.status_code)
+                    return None
+            except requests.exceptions.RequestException as e:
+                print("Error during request:", e)
+                return None     
+            
         xml_sat_ids = []
 
-        fiel = Fiel(FIEL_CER, FIEL_KEY, FIEL_PAS)
-        auth = Autenticacion(fiel)
-        token = auth.obtener_token()
-        descarga = SolicitaDescarga(fiel)
+        response = fetch_cfdi_data(self._get_default_vat(), self.date_start, self.date_end, self.cfdi_type)
 
-        if(self.cfdi_type == 'emitidos'):            
-            solicitud = descarga.solicitar_descarga(
-                token, RFC, FECHA_INICIAL, FECHA_FINAL, rfc_emisor=RFC, tipo_solicitud='CFDI')
-        else:
-            solicitud = descarga.solicitar_descarga(
-                token, RFC, FECHA_INICIAL, FECHA_FINAL, rfc_receptor=RFC, tipo_solicitud='CFDI' )
+        if response:
+            for xml in response["xmls"]:
+                try:
+                    cfdi_node = fromstring(xml["xmlFile"])
+                except etree.XMLSyntaxError:
+                    cfdi_info = {}
 
-        while True:
-            token = auth.obtener_token()
-            verificacion = VerificaSolicitudDescarga(fiel)
-            verificacion = verificacion.verificar_descarga(
-                token, RFC, solicitud['id_solicitud'])
-            estado_solicitud = int(verificacion['estado_solicitud'])
+                cfdi_infos = self.env['account.move']._l10n_mx_edi_decode_cfdi_etree(cfdi_node)
+                root = ET.fromstring(xml["xmlFile"])
 
-            # 0, Token invalido.
-            # 1, Aceptada
-            # 2, En proceso
-            # 3, Terminada
-            # 4, Error
-            # 5, Rechazada
-            # 6, Vencida
+                # Verificar que no se duplique el UUID
+                domain = [('name', '=', cfdi_infos.get('uuid'))]
+                if self.env['account.edi.downloaded.xml.sat'].search(domain, limit=1):
+                    continue
 
-            if estado_solicitud <= 2:
-                # Estado aceptado, esperar n segundos y volver a verificar
-                time.sleep(30)
-                continue
+              
+                """ 'uuid', 'supplier_rfc', 'customer_rfc', 'amount_total', 'cfdi_node', 'usage', 'payment_method'
+                'bank_account', 'sello', 'sello_sat', 'cadena', 'certificate_number', 'certificate_sat_number'
+                'expedition', 'fiscal_regime', 'emission_date_str', 'stamp_date' """
+                
+                # Buscar el partner
+                if(self.cfdi_type == 'emitidos'):
+                    partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('customer_rfc'))], limit=1)
+                else: 
+                    partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('supplier_rfc'))], limit=1)
+                vals = {
+                    'name': cfdi_infos.get('uuid'),
+                    'xml_file': base64.b64encode(xml["xmlFile"].encode('utf-8')),
+                    'cfdi_type': self.cfdi_type,
+                    'company_id': self.company_id.id,
+                    'partner_id': partner.id if partner else False,
+                    'stamp_date': cfdi_infos.get('stamp_date'),
+                    'xml_file_name': xml["uuid"],
+                    'state': 'not_imported',
+                    'document_type': root.get('TipoDeComprobante'),
+                    'payment_method': cfdi_infos.get('payment_method'),
+                    'sub_total': root.get('SubTotal') if root.get('SubTotal') else '0.0',
+                    'amount_total': cfdi_infos.get('amount_total') if cfdi_infos.get('amount_total') else '0.0',
+                    'serie':root.get('Serie'),
+                    'folio':root.get('Folio'),
+                    'divisa':root.get('Moneda'),
+                    'cfdi_usage': cfdi_infos.get('usage'),
+                }
 
-            elif estado_solicitud >= 4:
-                # Si el estatus es 4 o mayor se trata de un error
-                self.write({'state': 'error'})
-                raise UserError("Error al descargar los CFDI, pruebe intetando con una fecha diferente. Mensaje de error: "+solicitud['mensaje'])
-                raise UserError("Error al descargar los CFDI, pruebe intetando con una fecha diferente. Mensaje de error: "+solicitud['mensaje'])
-            else:
-                # Descargar los paquetes
-                for paquete in verificacion['paquetes']:
-                    descarga = DescargaMasiva(fiel)
-                    descarga = descarga.descargar_paquete(token, RFC, paquete)
-                    # Decodificar los datos Base64
-                    datos_binarios = base64.b64decode(descarga['paquete_b64'])
-                    zipData = BytesIO()
-                    zipData.write(datos_binarios)
-                    myZipFile = zipfile.ZipFile(zipData)
-                    for file in myZipFile.filelist:
-                        with myZipFile.open(file.filename) as myFile:
-                            cfdi_data = myFile.read()
-                            try:
-                                cfdi_node = fromstring(cfdi_data)
-                                
-                            except etree.XMLSyntaxError:
-                                # Not an xml
-                                cfdi_info = {}
+                # Creamos los productos del xml
+                # recived: boolean to search type of tax
+                products, total_impuestos, total_retenciones = get_products(xml["xmlFile"])
+                vals['total_impuestos'] = total_impuestos
+                vals['total_retenciones'] = total_retenciones
+                if products:
+                    created_products = self.env['account.edi.downloaded.xml.sat.products'].create(products)
+                    vals['downloaded_product_id'] = created_products
+                xml_sat_ids.append((0, 0, vals))
+        self.write({'xml_sat_ids': xml_sat_ids,'state': 'imported'})
 
-                            cfdi_infos = self.env['account.move']._l10n_mx_edi_decode_cfdi_etree(cfdi_node)
-                            root = ET.fromstring(cfdi_data)
 
-                            # Verificar que no se duplique el UUID
-                            domain = [('name', '=', cfdi_infos.get('uuid'))]
-                            if self.env['account.edi.downloaded.xml.sat'].search(domain, limit=1):
-                                continue
-
-                            """ cfdi_infos = {}
-                            'uuid'
-                            'supplier_rfc'
-                            'customer_rfc'
-                            'amount_total'
-                            'cfdi_node'
-                            'usage'
-                            'payment_method'
-                            'bank_account'
-                            'sello'
-                            'sello_sat'
-                            'cadena'
-                            'certificate_number'
-                            'certificate_sat_number'
-                            'expedition'
-                            'fiscal_regime'
-                            'emission_date_str'
-                            'stamp_date'
-                            """
-                            # Buscar el partner
-                            if(self.cfdi_type == 'emitidos'):
-                                partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('customer_rfc'))], limit=1)
-                            else: 
-                                partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('supplier_rfc'))], limit=1)
-                            vals = {
-                                'name': cfdi_infos.get('uuid'),
-                                'xml_file': base64.b64encode(cfdi_data),
-                                'cfdi_type': self.cfdi_type,
-                                'company_id': self.company_id.id,
-                                'partner_id': partner.id if partner else False,
-                                'stamp_date': cfdi_infos.get('stamp_date'),
-                                'xml_file_name': myFile.name,
-                                'state': 'not_imported',
-                                'document_type': root.get('TipoDeComprobante'),
-                                'payment_method': cfdi_infos.get('payment_method'),
-                                'sub_total': root.get('SubTotal') if root.get('SubTotal') else '0.0',
-                                'amount_total': cfdi_infos.get('amount_total') if cfdi_infos.get('amount_total') else '0.0',
-                                'serie':root.get('Serie'),
-                                'folio':root.get('Folio'),
-                                'divisa':root.get('Moneda'),
-                                'cfdi_usage': cfdi_infos.get('usage'),
-                            }
-
-                            # Creamos los productos del xml
-                            # recived: boolean to search type of tax
-                            products, total_impuestos, total_retenciones = get_products(cfdi_data)
-                            vals['total_impuestos'] = total_impuestos
-                            vals['total_retenciones'] = total_retenciones
-                            products, total_impuestos, total_retenciones = get_products(cfdi_data)
-                            vals['total_impuestos'] = total_impuestos
-                            vals['total_retenciones'] = total_retenciones
-                            if products:
-                                created_products = self.env['account.edi.downloaded.xml.sat.products'].create(products)
-                                vals['downloaded_product_id'] = created_products
-                            xml_sat_ids.append((0, 0, vals))
-                self.write({'xml_sat_ids': xml_sat_ids,'state': 'imported'})
-                break
 
 class DownloadedXmlSatProducts(models.Model):
     _name = "account.edi.downloaded.xml.sat.products"
