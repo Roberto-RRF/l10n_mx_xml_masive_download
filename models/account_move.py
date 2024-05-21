@@ -7,34 +7,34 @@ from lxml.objectify import fromstring
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
-    xml_imported = fields.Boolean(string="XML Imported", default=False)
-    stored_sat_uuid = fields.Char(compute='_get_uuid_from_xml_attachment', string="CFDI UUID", store=True, index=True, default=False)
+    xml_imported_id = fields.Many2one('account.edi.downloaded.xml.sat', string="Downloaded XML")
 
     """
     Method created to have a field that stores the UUID of the CFDI in the account.move model
     To be able to relate the downloaded xml with the invoice
     """
-    @api.depends('attachment_ids')
-    def _get_uuid_from_xml_attachment(self):
-        for record in self:
-            attachments = record.attachment_ids.filtered(lambda x: x.mimetype == 'application/xml')
-            if attachments:
-                try: 
-                    # Obtain uuid
-                    cfdi_data = _l10n_mx_edi_decode_cfdi(attachments[0].datas)
-                    record.stored_sat_uuid = cfdi_data['uuid']
-                except:
-                    pass
-            else:
-                record.stored_sat_uuid = False
         
+    # @api.depends('attachment_ids')
+    # def _get_uuid_from_xml_attachment(self):
+    #     for rec in self:
+    #         print("Calculando UUID \n\n\n")
+    #         edi_content = self.env['ir.attachment'].search([('res_model', '=', 'account.move'), 
+    #                                                    ('res_id', '=', rec.id), 
+    #                                                    ], limit=1) # ('name', 'ilike', '.xml')
+    #         print(edi_content)
+    #         if edi_content and rec.stored_sat_uuid != "":
+    #             print(str(edi_content))
+    #             cfdi_node = self._l10n_mx_edi_decode_cfdi(edi_content)
+    #             return cfdi_node.get('uuid')
+    #         else:
+    #             return ""
 
+    # stored_sat_uuid = fields.Char(compute='_get_uuid_from_xml_attachment', string="CFDI UUID", store=True, index=True)
 
-    @api.onchange('state')
-    def _onchange_update_downloaded_xml_record(self):
-        downloaded_xml = self.env['account.edi.downloaded.xml.sat'].search([('invoice_id', '=', self.id)], limit=1)
-        if downloaded_xml:
-            downloaded_xml.write({'state': self.state})        
+    @api.constrains('state')
+    def onchange_update_downloaded_xml_record(self):
+        if self.xml_imported_id:
+            self.xml_imported_id.write({'state':self.state})   
 
     # This method was moved to DownloadedXmlSat --> delete later 
     def relate_download(self):
@@ -49,21 +49,21 @@ class AccountMove(models.Model):
             else:
                 download.write({'state': 'error'})
 
-    def generate_pdf_attatchment(self):
-        pdf = self.env.ref('account.account_invoices')._render_qweb_pdf([self.id])
-        b64_pdf = base64.b64encode(pdf[0])
+    def create_edi_document_from_attatchment(self):
 
-        ir_values = {
-            'name': 'Invoice ' + self.name,
-            'type': 'binary',
-            'datas': b64_pdf,
-            'store_fname': 'Invoice ' + self.name + '.pdf',
-            'mimetype': 'application/pdf',
-            'res_model': 'account.move',
-            'res_id': self.id,
-        }
-       
-        self.env['ir.attachment'].create(ir_values)
+        edi_cfdi33 = self.env['account.edi.format'].search([('code','=','cfdi_3_3')], limit=1)
+        edi_document_vals_list = []
+        for move in self:
+            edi_content = move.attachment_ids.filtered(lambda m: m.mimetype == 'application/xml')
+            if edi_content:
+                edi_document_vals_list.append({
+                    'edi_format_id': edi_cfdi33.id,
+                    'move_id': move.id,
+                    'state': 'sent',
+                    'attachment_id': edi_content.id,
+                })
+        res = self.env['account.edi.document'].create(edi_document_vals_list)
+
 
     # This methos was taken from odoo 16.0 
     def _l10n_mx_edi_decode_cfdi(self, cfdi_data=None):
@@ -145,7 +145,6 @@ class AccountMove(models.Model):
             'bank_account': cfdi_node.get('NumCtaPago'),
             'sello': cfdi_node.get('sello', cfdi_node.get('Sello', 'No identificado')),
             'sello_sat': tfd_node is not None and tfd_node.get('selloSAT', tfd_node.get('SelloSAT', 'No identificado')),
-            'cadena': tfd_node is not None and get_cadena(tfd_node, self._l10n_mx_edi_get_cadena_xslts()[0]) or get_cadena(cfdi_node, self._l10n_mx_edi_get_cadena_xslts()[1]),
             'certificate_number': cfdi_node.get('noCertificado', cfdi_node.get('NoCertificado')),
             'certificate_sat_number': tfd_node is not None and tfd_node.get('NoCertificadoSAT'),
             'expedition': cfdi_node.get('LugarExpedicion'),

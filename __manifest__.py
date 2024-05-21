@@ -15,10 +15,10 @@ XML Masive Download from SAT WebService.
         'security/ir.model.access.csv',
         'views/l10n_mx_edi_view.xml',
         'views/res_company_view.xml',
-        'views/l10n_mx_edi_certificate_view.xml',
-        'views/account_move_view.xml',
         'security/ir_rules.xml',
         'models/server_actions.xml',
+        'report/product_report.xml',
+        'report/ir_actions_report.xml'
     ],
     'auto_install': False,
     "license": "AGPL-3",
