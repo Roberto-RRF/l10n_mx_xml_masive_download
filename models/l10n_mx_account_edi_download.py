@@ -211,18 +211,17 @@ class DownloadedXmlSat(models.Model):
             id_documento = docto_relacionado.get('IdDocumento')
             id_documentos.append(id_documento)
 
-        moves = self.env['account.move'].search([('l10n_mx_edi_cfdi_uuid','in', id_documentos)])
+        moves = self.env['account.move'].search([('sat_uuid','in', id_documentos)])
 
         # Si hay factura, verificar si el estatus es in_payment 
-
         if moves:
             for move in moves:
                 if move.payment_state == 'in_payment':
-                    print("Adentro")
-                    # Buscar el Id del pago
-                    
                     payments = self.env['account.payment'].search([('reconciled_invoice_ids','=',move.id)])
                     for payment in payments:
+                        edi_document_vals_list = []
+                        edi_cfdi33 = self.env['account.edi.format'].search([('code','=','cfdi_3_3')], limit=1)
+
                         attachment_values = {
                                 'name': self.xml_file_name,  # Name of the XML file
                                 'datas': self.xml_file,  # Read XML file content
@@ -235,35 +234,15 @@ class DownloadedXmlSat(models.Model):
                         res = self.env['ir.attachment'].create(attachment_values)
 
                         edi = self.env['l10n_mx_edi.document']
-    
-                        edi_data = {
-                                    # 'name' : uuid_name+'.xml',
-                                    'state' : 'payment_sent',
-                                    'sat_state' : 'not_defined',
-                                    'message': '',
-                                    'datetime': fields.Datetime.now(),
-                                    'attachment_uuid': self.name,
-                                    'attachment_id' : res.id,
-                                    'move_id'    : payment.move_id.id,
-                                    }
-                        new_edi_doc = edi.create(edi_data)
 
-                        #### Asociando las Facturas ####
-                        invoice_rel_ids = []
-                        #### Facturas de Cliente ####
-                        if payment.reconciled_invoice_ids:
-                            invoice_rel_ids = payment.reconciled_invoice_ids.ids
-                        #### Facturas de Proveedor ####
-                        if payment.reconciled_bill_ids:
-                            invoice_rel_ids = payment.reconciled_bill_ids.ids
-
-                        new_edi_doc.invoice_ids = [(6,0, invoice_rel_ids)]
-        else: 
-            raise UserError("Error adjuntando pago, verifique que la factura exista y tenga un pago creado")
-
-
-
-    
+                        edi_document_vals_list.append({
+                            'edi_format_id': edi_cfdi33.id,
+                            'move_id': move.id,
+                            'state': 'payment_sent',
+                            'attachment_id': res.id,
+                        })
+                        self.env['account.edi.document'].create(edi_document_vals_list)
+       
 class AccountEdiApiDownload(models.Model):
     _name = 'account.edi.api.download'
     _description = "Account Edi Download From SAT Web Service"
@@ -501,12 +480,9 @@ class AccountEdiApiDownload(models.Model):
                 xml_sat_ids.append((0, 0, vals))
         self.write({'xml_sat_ids': xml_sat_ids,'state': 'imported'})
 
-
-
 class DownloadedXmlSatProducts(models.Model):
     _name = "account.edi.downloaded.xml.sat.products"
     _description = "Account Edi Download From SAT Web Service Products"
-
     sat_id = fields.Char(string="SAT ID", required=True)
     quantity = fields.Float(string="Quantity", required=True)
     product_metrics = fields.Char(string="Clave Unidad", required=True)
@@ -515,9 +491,7 @@ class DownloadedXmlSatProducts(models.Model):
     total_amount = fields.Float(string="Importe", required=True)
     product_rel = fields.Many2one('product.product')
     tax_id = fields.Many2many('account.tax')
-
     downloaded_invoice_id = fields.Many2one(
         'account.edi.downloaded.xml.sat',
         string='Downloaded product ID',
         ondelete="cascade")
-    
