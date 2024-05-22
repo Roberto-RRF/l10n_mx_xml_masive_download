@@ -137,8 +137,9 @@ class DownloadedXmlSat(models.Model):
 
         }
         #result, format = self.env["ir.actions.report"]._render_qweb_pdf('l10n_mx_xml_masive_download.action_report_product_template', [self.id], datas)
-        result, format = self.env.ref('l10n_mx_xml_masive_download.action_report_product_template')._render_qweb_pdf(self.id, data=datas)
-
+        #result, format = self.env.ref('l10n_mx_xml_masive_download.report_product')._render_qweb_pdf(self.id, data=datas)
+        result, format = self.env["ir.actions.report"]._render_qweb_pdf('l10n_mx_xml_masive_download.report_product', [self.id], datas)
+        
         result = base64.b64encode(result)
 
         ir_values = {
