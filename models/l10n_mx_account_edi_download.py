@@ -487,6 +487,11 @@ class AccountEdiApiDownload(models.Model):
                     'cfdi_usage': cfdi_infos.get('usage'),
                 }
 
+                if root.get('TipoDeComprobante') == 'P':
+                    monto_total_pagos = root.find('.//pago20:Totales', {'pago20': 'http://www.sat.gob.mx/Pagos20'}).get('MontoTotalPagos')
+                    vals['amount_total'] = monto_total_pagos
+                    vals['sub_total'] = monto_total_pagos
+
                 # Creamos los productos del xml
                 # recived: boolean to search type of tax
                 products, total_impuestos, total_retenciones = get_products(xml["xmlFile"])
