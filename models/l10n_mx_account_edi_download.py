@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import api, fields, models, _, tools
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError, ValidationError, AccessError
 from lxml import etree
 from lxml.objectify import fromstring
 import base64
@@ -41,8 +41,55 @@ USO_CFDI  = [
     ("S01", "Sin Efectos Fiscales"),
 ]
  
-#ydktJDzg4Fr9nh
-#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
+PAYMENT_METHOD = [
+    ("01", "Efectivo"),
+    ("02", "Cheque nominativo"),
+    ("03", "Transferencia electrónica de fondos"),
+    ("04", "Tarjeta de crédito"),
+    ("05", "Monedero electrónico"),
+    ("06", "Dinero electrónico"),
+    ("08", "Vales de despensa"),
+    ("12", "Dación en pago"),
+    ("13", "Pago por subrogación"),
+    ("14", "Pago por consignación"),
+    ("15", "Condonación"),
+    ("17", "Compensación"),
+    ("23", "Novación"),
+    ("24", "Confusión"),
+    ("25", "Remisión de deuda"),
+    ("26", "Prescripción o caducidad"),
+    ("27", "A satisfacción del acreedor"),
+    ("28", "Tarjeta de débito"),
+    ("29", "Tarjeta de servicios"),
+    ("30", "Aplicación de anticipos"),
+    ("99", "Por definir")
+]
+
+TAX_REGIME = [
+    ("601", "General de Ley Personas Morales"),
+    ("603", "Personas Morales con Fines no Lucrativos"),
+    ("605", "Sueldos y Salarios e Ingresos Asimilados a Salarios"),
+    ("606", "Arrendamiento"),
+    ("607", "Régimen de Enajenación o Adquisición de Bienes"),
+    ("608", "Demás ingresos"),
+    ("609", "Consolidación"),
+    ("610", "Residentes en el Extranjero sin Establecimiento Permanente en México"),
+    ("611", "Ingresos por Dividendos (socios y accionistas)"),
+    ("612", "Personas Físicas con Actividades Empresariales y Profesionales"),
+    ("614", "Ingresos por intereses"),
+    ("615", "Régimen de los ingresos por obtención de premios"),
+    ("616", "Sin obligaciones fiscales"),
+    ("620", "Sociedades Cooperativas de Producción que optan por diferir sus ingresos"),
+    ("621", "Incorporación Fiscal"),
+    ("622", "Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras"),
+    ("623", "Opcional para Grupos de Sociedades"),
+    ("624", "Coordinados"),
+    ("625", "Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas"),
+    ("626", "Régimen Simplificado de Confianza"),
+    ("628", "Hidrocarburos"),
+    ("629", "De los Regímenes Fiscales Preferentes y de las Empresas Multinacionales"),
+    ("630", "Enajenación de acciones en bolsa de valores")
+]
 
 class DownloadedXmlSat(models.Model):
     _name = "account.edi.downloaded.xml.sat"
@@ -51,9 +98,9 @@ class DownloadedXmlSat(models.Model):
   
     name = fields.Char(string="UUID", required=True, index='trigram')
     active_company_id = fields.Integer(string='Empresa', compute='_compute_active_company_id')
-    company_id = fields.Many2one('res.company', string='Company', default=lambda self: self.env.company.id) 
-    partner_id = fields.Many2one('res.partner') # Cliente/Proveedor
-    invoice_id = fields.Many2one('account.move') # Factura
+    company_id = fields.Many2one('res.company', string='Empresa', default=lambda self: self.env.company.id) 
+    partner_id = fields.Many2one('res.partner', string="Proveedor") # Cliente/Proveedor
+    invoice_id = fields.Many2one('account.move', string="Factura Relacionada") # Factura
     xml_file = fields.Binary(string='Archivo XML') # Archivo XML
     cfdi_type = fields.Selection([('recibidos', 'Recibidos'),('emitidos', 'Emitidos'), ], string='Tipo', required=True, default='emitidos') 
     batch_id = fields.Many2one(
@@ -66,7 +113,7 @@ class DownloadedXmlSat(models.Model):
         ondelete="cascade",
         check_company=True,
     )
-    stamp_date =  fields.Date(string="Fecha de Estampado")
+    document_date =  fields.Date(string="Fecha de Documento")
     xml_file_name = fields.Char(string='Nombre archivo XML')
     serie = fields.Char(string="Serie Factura")
     folio = fields.Char(string="Folio Factura")
@@ -74,9 +121,9 @@ class DownloadedXmlSat(models.Model):
     state = fields.Selection(
         selection=[
             ('not_imported', 'No Importado'),
-            ('draft', 'Draft'),
-            ('posted', 'Posted'),
-            ('cancel', 'Cancelled'),
+            ('draft', 'Borrador'),
+            ('posted', 'Publicado'),
+            ('cancel', 'Cancelado'),
             ('error_relating', 'Error Relacionando'),
         ],
         string='Status',
@@ -98,9 +145,10 @@ class DownloadedXmlSat(models.Model):
         'account.edi.downloaded.xml.sat.products',
         'downloaded_invoice_id',
         string='Downloaded product ID',)  
-
+    payment_method_sat = fields.Selection(PAYMENT_METHOD, string="Metodo de Pago")
     total_impuestos = fields.Float(string='Total Impuestos')
     total_retenciones = fields.Float(string='Total Retenciones')
+    tax_regime = fields.Selection(TAX_REGIME, string="Regimen Fiscal")
 
     total_impuestos = fields.Float(string='Total Impuestos')
     total_retenciones = fields.Float(string='Total Retenciones')
@@ -124,7 +172,7 @@ class DownloadedXmlSat(models.Model):
             'folio':self.folio, 
             'divisa':self.divisa,
             'name':self.name,
-            'stamp_date':self.stamp_date,
+            'document_date':self.document_date,
             'document_type':self.document_type,
             'downloaded_product_id':self.downloaded_product_id,
             'total_impuestos':self.total_impuestos,
@@ -160,8 +208,8 @@ class DownloadedXmlSat(models.Model):
             account_move_dict = {
                 'ref': ref,
                 'ref': ref,
-                'invoice_date': item.stamp_date,
-                'date': item.stamp_date,
+                'invoice_date': item.document_date,
+                'date': item.document_date,
                 'move_type':'out_invoice' if self.cfdi_type == 'recividos' else 'in_invoice',
                 'move_type':'out_invoice' if self.cfdi_type == 'recividos' else 'in_invoice',
                 'partner_id': item.partner_id.id,
@@ -217,7 +265,6 @@ class DownloadedXmlSat(models.Model):
         if moves:
             for move in moves:
                 if move.payment_state == 'in_payment':
-                    print("Adentro")
                     # Buscar el Id del pago
                     
                     payments = self.env['account.payment'].search([('reconciled_invoice_ids','=',move.id)])
@@ -259,7 +306,22 @@ class DownloadedXmlSat(models.Model):
                         new_edi_doc.invoice_ids = [(6,0, invoice_rel_ids)]
         else: 
             raise UserError("Error adjuntando pago, verifique que la factura exista y tenga un pago creado")
+    
+    # Manage access to model
+    def unlink(self):
+        if not self.env.user.can_delete_xml:
+            raise AccessError("You do not have the permission to delete this record.")
+        return super(DownloadedXmlSat, self).unlink()
+    
+    def create(self, values):
+        if not self.env.user.can_access_xml_models:
+            raise AccessError("You do not have the permission to access this record.")
+        return super(DownloadedXmlSat, self).create(values)
 
+    def write(self, values):
+        if not self.env.user.can_access_xml_models:
+            raise AccessError("You do not have the permission to access this record.")
+        return super(DownloadedXmlSat, self).write(values)
 
 
     
@@ -269,7 +331,6 @@ class AccountEdiApiDownload(models.Model):
 
     @api.model
     def _get_default_vat(self):
-        # Get TAX ID from the company that is currently logged in
         return self.env.company.vat
     
     # Fields
@@ -278,7 +339,7 @@ class AccountEdiApiDownload(models.Model):
     company_id = fields.Many2one('res.company', string='Company', default=lambda self: self.env.company.id, readonly = True)
     date_start = fields.Date(string='Fecha de Comienzo', required=True, default=fields.Date.today())
     date_end = fields.Date(string='Fecha de Finalizacion', required=True, default=fields.Date.today())
-    cfdi_type = fields.Selection([('emitidos', 'Emitidos'), ('recibidos', 'Recibidos')], string='Tipo', required=True, default='emitidos')
+    cfdi_type = fields.Selection([('emitidos', 'Emitidos'), ('recibidos', 'Recibidos')], string='Tipo', required=True, default='recibidos')
     state = fields.Selection(
     selection=[
         ('not_imported', 'No importado'),
@@ -293,9 +354,19 @@ class AccountEdiApiDownload(models.Model):
         string='Downloaded XML SAT',
         copy=True,
         readonly=True,
-        #states={'not_imported': [('readonly', False)]},
     )
     xml_count = fields.Integer(string='Delivery Orders', compute='_compute_xml_ids')
+
+    # Campos para filtrat por tipo de documento
+    ingreso = fields.Boolean(string="Ingreso", default=True)
+    egreso = fields.Boolean(string="Egreso", default=True)
+    pago = fields.Boolean(string="Pago", default=True)
+    nomina = fields.Boolean(string="Nomina", default=True)
+
+    # Estos estan mas dificiles (pendiente)
+    cancelados = fields.Boolean(string="Cancelados", default=True)
+    vigentes = fields.Boolean(string="Vigentes", default=True)
+
 
         
     @api.depends('xml_sat_ids')
@@ -314,7 +385,7 @@ class AccountEdiApiDownload(models.Model):
             'target': 'current',
             'domain': [('id', 'in', xml_sat_ids)]
         }
-        
+
     def action_download(self):
 
         """
@@ -391,7 +462,7 @@ class AccountEdiApiDownload(models.Model):
                             if tax.id:
                                 taxes_ids.append(tax.id)
                         except AttributeError as e:
-                            print("\n\n\n\n\n\n\n"+str(tax))
+                            pass
                     # Buscamos a ver si ya se relaciono el producto
                     domain = [
                         ('sat_id', '=', clave_prod_serv),
@@ -423,10 +494,15 @@ class AccountEdiApiDownload(models.Model):
                     conceptos_list.append(concepto_info)
                 return (conceptos_list, total_impuestos, total_retenciones)
 
-        def fetch_cfdi_data(RFC, startDate, endDate, xml_type):
+        def fetch_cfdi_data(RFC, startDate, endDate, xml_type, ingreso, egreso, pago, nomina):
             base_url = 'https://xmlsat.anfepi.com/get-cfdis'
-            url = f"{base_url}?RFC={RFC}&startDate={startDate}&endDate={endDate}&xml_type={xml_type}"
-
+            url = (
+                f"{base_url}?RFC={RFC}&startDate={startDate}&endDate={endDate}&xml_type={xml_type}"
+                f"&ingreso={'true' if ingreso else 'false'}"
+                f"&egreso={'true' if egreso else 'false'}"
+                f"&pago={'true' if pago else 'false'}"
+                f"&nomina={'true' if nomina else 'false'}"
+            )
             try:
                 response = requests.get(url)
                 if response.status_code == 200:
@@ -441,7 +517,7 @@ class AccountEdiApiDownload(models.Model):
             
         xml_sat_ids = []
 
-        response = fetch_cfdi_data(self._get_default_vat(), self.date_start, self.date_end, self.cfdi_type)
+        response = fetch_cfdi_data(self._get_default_vat(), self.date_start, self.date_end, self.cfdi_type, self.ingreso, self.egreso, self.pago, self.nomina)
 
         if response:
             for xml in response["xmls"]:
@@ -462,29 +538,33 @@ class AccountEdiApiDownload(models.Model):
                 """ 'uuid', 'supplier_rfc', 'customer_rfc', 'amount_total', 'cfdi_node', 'usage', 'payment_method'
                 'bank_account', 'sello', 'sello_sat', 'cadena', 'certificate_number', 'certificate_sat_number'
                 'expedition', 'fiscal_regime', 'emission_date_str', 'stamp_date' """
-                
+                tax_regime = ""
                 # Buscar el partner
                 if(self.cfdi_type == 'emitidos'):
                     partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('customer_rfc'))], limit=1)
+                    tax_regime = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'}).get("RegimenFiscal")
                 else: 
                     partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('supplier_rfc'))], limit=1)
+                    tax_regime = root.find('.//cfdi:Emisor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'}).get("RegimenFiscal")
                 vals = {
                     'name': cfdi_infos.get('uuid'),
                     'xml_file': base64.b64encode(xml["xmlFile"].encode('utf-8')),
                     'cfdi_type': self.cfdi_type,
                     'company_id': self.company_id.id,
                     'partner_id': partner.id if partner else False,
-                    'stamp_date': cfdi_infos.get('stamp_date'),
+                    'document_date': root.attrib.get('Fecha'),
                     'xml_file_name': xml["uuid"],
                     'state': 'not_imported',
                     'document_type': root.get('TipoDeComprobante'),
                     'payment_method': cfdi_infos.get('payment_method'),
+                    'payment_method_sat': root.get('FormaPago'),
                     'sub_total': root.get('SubTotal') if root.get('SubTotal') else '0.0',
                     'amount_total': cfdi_infos.get('amount_total') if cfdi_infos.get('amount_total') else '0.0',
                     'serie':root.get('Serie'),
                     'folio':root.get('Folio'),
                     'divisa':root.get('Moneda'),
                     'cfdi_usage': cfdi_infos.get('usage'),
+                    'tax_regime': tax_regime,
                 }
 
                 if root.get('TipoDeComprobante') == 'P':
@@ -498,25 +578,46 @@ class AccountEdiApiDownload(models.Model):
                 vals['total_impuestos'] = total_impuestos
                 vals['total_retenciones'] = total_retenciones
                 if products:
+                    if root.get('TipoDeComprobante') == 'P':
+                        for product in products:
+                            product['total_amount'] = float(monto_total_pagos)
+                        
                     created_products = self.env['account.edi.downloaded.xml.sat.products'].create(products)
                     vals['downloaded_product_id'] = created_products
                 xml_sat_ids.append((0, 0, vals))
         self.write({'xml_sat_ids': xml_sat_ids,'state': 'imported'})
+    
+    # Manage access to model
+    def unlink(self):
+        if not self.env.user.can_delete_xml:
+            raise AccessError("You do not have the permission to delete this record.")
+        return super(AccountEdiApiDownload, self).unlink()
+    
+    def create(self, values):
+        if not self.env.user.can_access_xml_models:
+            raise AccessError("You do not have the permission to access this record.")
+        return super(AccountEdiApiDownload, self).create(values)
 
+    def write(self, values):
+        if not self.env.user.can_access_xml_models:
+            raise AccessError("You do not have the permission to access this record.")
+        return super(AccountEdiApiDownload, self).write(values)
+    
+  
 
 
 class DownloadedXmlSatProducts(models.Model):
     _name = "account.edi.downloaded.xml.sat.products"
     _description = "Account Edi Download From SAT Web Service Products"
 
-    sat_id = fields.Char(string="SAT ID", required=True)
-    quantity = fields.Float(string="Quantity", required=True)
+    sat_id = fields.Char(string="Codigo SAT", required=True)
+    quantity = fields.Float(string="Cantidad", required=True)
     product_metrics = fields.Char(string="Clave Unidad", required=True)
     description = fields.Char(string="Descripcion", required=True)
     unit_value = fields.Float(string="Valor Unitario", required=True)
     total_amount = fields.Float(string="Importe", required=True)
-    product_rel = fields.Many2one('product.product')
-    tax_id = fields.Many2many('account.tax')
+    product_rel = fields.Many2one('product.product', string="Producto Odoo")
+    tax_id = fields.Many2many('account.tax', string="Impuestos")
 
     downloaded_invoice_id = fields.Many2one(
         'account.edi.downloaded.xml.sat',

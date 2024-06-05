@@ -9,12 +9,15 @@
                     <field name="name"/>
                     <field name="company_id" />                    
                     <field name="partner_id"/>
+                    <field name="tax_regime"/>
                     <field name="invoice_id"/>
                     <field name="payment_method"/>
+                    <field name="payment_method_sat"/>
                     <field name="cfdi_type"/>
+                    <field name="cfdi_usage"/>
                     <field name="document_type"/>
                     <field name="state"/>
-                    <field name="stamp_date"/>
+                    <field name="document_date"/>
                     <field name="sub_total"/>
                     <field name="amount_total"/>
                 </tree>
@@ -22,6 +25,20 @@
             </field>
         </record>
 
+        <record id="view_account_edi_downloaded_xml_sat_tree_search" model="ir.ui.view">
+            <field name="name">account.edi.downloaded.xml.sat.view.search</field>
+            <field name="model">account.edi.downloaded.xml.sat</field>
+            <field name="arch" type="xml">
+                <search>
+                    <filter string="Con Forma de Pago PUE" name="PUE" domain="[('payment_method','=','PUE')]"/>
+                    <filter string="Con Forma de Pago PPD" name="PPD" domain="[('payment_method','=','PPD')]"/>
+                    <filter string="Uso de CFDI sin Efectos Fiscales" name="usoCfdi" domain="[('cfdi_usage','=','S01')]"/>
+                    <group expand="0" string="Group By">
+                        <filter string="Regimen Fiscal Partner" name="fiscal_regime" context="{'group_by': 'tax_regime'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
 
        <record id="view_account_edi_downloaded_xml_sat_form" model="ir.ui.view">
             <field name="name">account.edi.downloaded.xml.sat.form</field>
@@ -45,11 +62,11 @@
                                 <field name="xml_file" filename="xml_file_name" readonly="1" />
                                 <field name="xml_file_name" invisible="1"/>
                                 <field name="cfdi_type" readonly="1" />
-                                <field name="stamp_date" readonly="1"/>
+                                <field name="document_date" readonly="1"/>
                             </group>
                         </group>
 
-                        <field name="downloaded_product_id" >
+                        <field name="downloaded_product_id" invisible="document_type == 'P'">
 
                             <tree string="Products" editable="bottom" delete="0">
                                 <field name="product_rel"/>
@@ -58,6 +75,14 @@
                                 <field name="tax_id" readonly="1" widget="many2many_tags"/>
                                 <field name="quantity" readonly="1"/>
                                 <field name="unit_value" readonly="1"/>
+                                <field name="total_amount" readonly="1"/>
+                            </tree>
+                        </field>
+                        <field name="downloaded_product_id" invisible="document_type != 'P'">
+                            <tree string="Products" editable="bottom" delete="0">
+                                <field name="sat_id" readonly="1"/>
+                                <field name="description" readonly="1"/>
+                                <field name="quantity" readonly="1"/>
                                 <field name="total_amount" readonly="1"/>
                             </tree>
                         </field>
@@ -105,12 +130,26 @@
                         </button>
                         </div>
                         <h1>Descargar XMLs del SAT</h1>
-                        <group >
+                        <group col="2">
+                            <group>
                                 <field name="vat" readonly="state!='not_imported'"/>
                                 <field name="company_id" options="{'no_open' : True}"/>
                                 <field name="cfdi_type" readonly="state!='not_imported'"/>
+                                
+                                
+                          
                                 <field name="date_start" readonly="state!='not_imported'"/>
                                 <field name="date_end" readonly="state!='not_imported'"/>
+                           
+                            </group>
+                            <group>
+                                <field name="ingreso" readonly="state!='not_imported'"/>
+                                <field name="egreso" readonly="state!='not_imported'"/>
+                                <field name="pago" readonly="state!='not_imported'"/>
+                                <field name="nomina" readonly="state!='not_imported'"/>
+                                <!-- <field name="cancelados" readonly="state!='not_imported'"/>
+                                <field name="vigentes" readonly="state!='not_imported'"/> -->
+                            </group>  
                         </group>
                     </sheet>
                 </form>
@@ -123,7 +162,7 @@
             <field name="view_mode">tree,form</field>
             <field name="target">current</field>
         </record>
-        <menuitem id="account_edi_api_download_menu" parent="account.menu_finance_entries_actions" action="account_edi_api_download_action" sequence="1" name="Download XML from SAT"/>
+        <menuitem id="account_edi_api_download_menu" parent="account.menu_finance_entries_actions" action="account_edi_api_download_action" sequence="1" name="Importar XMLs del SAT" />
         
         <record id="account_edi_download_xml_sat_view_action" model="ir.actions.act_window">
             <field name="name">XMLs Descargados del SAT</field>
