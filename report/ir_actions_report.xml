@@ -11,5 +11,6 @@
        <field name="binding_model_id" ref="model_account_edi_downloaded_xml_sat"/>
        <field name="binding_type">report</field>
    </record>
+   
 </data>
 </odoo>

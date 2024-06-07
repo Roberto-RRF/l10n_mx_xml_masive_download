@@ -6,20 +6,20 @@
             <field name="model">account.edi.downloaded.xml.sat</field>
             <field name="arch" type="xml">
                 <tree string="XML SAT" create="0">
-                    <field name="name"/>
-                    <field name="company_id" />                    
-                    <field name="partner_id"/>
-                    <field name="tax_regime"/>
-                    <field name="invoice_id"/>
-                    <field name="payment_method"/>
-                    <field name="payment_method_sat"/>
-                    <field name="cfdi_type"/>
-                    <field name="cfdi_usage"/>
-                    <field name="document_type"/>
-                    <field name="state"/>
-                    <field name="document_date"/>
-                    <field name="sub_total"/>
-                    <field name="amount_total"/>
+                    <field name="name" optional="show"/>
+                    <field name="company_id" optional="show"/>                    
+                    <field name="partner_id" optional="show"/>
+                    <field name="tax_regime" optional="show"/>
+                    <field name="invoice_id" optional="show"/>
+                    <field name="payment_method" optional="show"/>
+                    <field name="payment_method_sat" optional="show"/>
+                    <field name="cfdi_type" optional="show"/>
+                    <field name="cfdi_usage" optional="show"/>
+                    <field name="document_type" optional="show"/>
+                    <field name="state" optional="show"/>
+                    <field name="document_date" optional="show"/>
+                    <field name="sub_total" optional="show"/>
+                    <field name="amount_total" optional="show"/>
                 </tree>
 
             </field>
@@ -121,7 +121,8 @@
                 <form>
                     <header>
                         <button name="action_download" string="Import" class="oe_highlight" type="object" invisible="state!='not_imported'" />             
-                        <field name="state" widget="statusbar" statusbar_visible="not_imported,imported,error"/>
+                        <button name="action_update" string="Actualizar Lote" class="oe_highlight" type="object" invisible="state=='not_imported'" />             
+                        <field name="state" widget="statusbar" statusbar_visible="not_imported,imported,updated,error"/>
                     </header>
                     <sheet>
                         <div name="button_box" position="inside">
@@ -130,9 +131,14 @@
                         </button>
                         </div>
                         <h1>Descargar XMLs del SAT</h1>
+                        <group>
+                            <field name="last_update_date" readonly="1" />
+                        </group>
+
+                        <separator string="Filtros de descarga" colspan="2"/>
                         <group col="2">
                             <group>
-                                <field name="vat" readonly="state!='not_imported'"/>
+                                <field name="vat" readonly="1"/>
                                 <field name="company_id" options="{'no_open' : True}"/>
                                 <field name="cfdi_type" readonly="state!='not_imported'"/>
                                 

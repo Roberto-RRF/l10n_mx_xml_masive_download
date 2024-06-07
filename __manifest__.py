@@ -5,6 +5,7 @@
     'name': 'XML Masive Download',
     'version': '1.0',
     'category': 'Hidden',
+    'author':'ANFEPI: Roberto Requejo Fernández',
     'description': """
 XML Masive Download from SAT WebService.
 ========================================
@@ -22,7 +23,7 @@ XML Masive Download from SAT WebService.
         'report/ir_actions_report.xml',
         
     ],
+    'images': ['static/description/icon.png'],
     'auto_install': False,
     "license": "AGPL-3",
-    # 'pre_init_hook': 'pre_init_hook',
 }

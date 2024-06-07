@@ -163,6 +163,7 @@ class DownloadedXmlSat(models.Model):
                 item.write({'invoice_id': move.id, 'state': move.state})
     
     def generate_pdf_attatchment(self, account_id):
+
         datas = {
             'partner_id':self.partner_id,
             'cfdi_type':self.cfdi_type,
@@ -264,7 +265,7 @@ class DownloadedXmlSat(models.Model):
 
         if moves:
             for move in moves:
-                if move.payment_state == 'in_payment':
+                if move.payment_state == 'in_payment' or move.payment_state == 'paid':
                     # Buscar el Id del pago
                     
                     payments = self.env['account.payment'].search([('reconciled_invoice_ids','=',move.id)])
@@ -336,14 +337,16 @@ class AccountEdiApiDownload(models.Model):
     # Fields
     name = fields.Char(string='Nombre',  index=True) 
     vat = fields.Char(string='RFC',  default=_get_default_vat)
-    company_id = fields.Many2one('res.company', string='Company', default=lambda self: self.env.company.id, readonly = True)
+    company_id = fields.Many2one('res.company', string='Empresa', default=lambda self: self.env.company.id, readonly = True)
     date_start = fields.Date(string='Fecha de Comienzo', required=True, default=fields.Date.today())
     date_end = fields.Date(string='Fecha de Finalizacion', required=True, default=fields.Date.today())
+    last_update_date = fields.Date(string='Última actualización',  default=fields.Date.today())
     cfdi_type = fields.Selection([('emitidos', 'Emitidos'), ('recibidos', 'Recibidos')], string='Tipo', required=True, default='recibidos')
     state = fields.Selection(
     selection=[
         ('not_imported', 'No importado'),
         ('imported', 'Importado'),
+        ('updated', 'Actualizado'),
         ('error', 'Error'),
     ],
     string='Status', default='not_imported', readonly=True, 
@@ -366,7 +369,6 @@ class AccountEdiApiDownload(models.Model):
     # Estos estan mas dificiles (pendiente)
     cancelados = fields.Boolean(string="Cancelados", default=True)
     vigentes = fields.Boolean(string="Vigentes", default=True)
-
 
         
     @api.depends('xml_sat_ids')
@@ -587,6 +589,13 @@ class AccountEdiApiDownload(models.Model):
                 xml_sat_ids.append((0, 0, vals))
         self.write({'xml_sat_ids': xml_sat_ids,'state': 'imported'})
     
+    def action_update(self): 
+        self.action_download()
+        self.write({
+            'last_update_date':fields.Date.today(),
+            'state':'updated',
+        })
+
     # Manage access to model
     def unlink(self):
         if not self.env.user.can_delete_xml:
@@ -603,6 +612,7 @@ class AccountEdiApiDownload(models.Model):
             raise AccessError("You do not have the permission to access this record.")
         return super(AccountEdiApiDownload, self).write(values)
     
+
   
 
 

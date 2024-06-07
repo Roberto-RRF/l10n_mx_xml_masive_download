@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 <data>
-   <template id="report_product">
+   <template id="report_product" >
        <t t-call="web.html_container">
            <t t-foreach="docs" t-as="o">
            
                <t t-call="web.internal_layout">
-                   <div class="page">
+                   <div class="page" t-attf-style="transform: rotate(-90deg); transform-origin: top left; width: 100vh; height: 100vw; position: absolute; top: 100%; left: 0;">
                    
                         <h1>Factura: </h1>
                         <div class="row">
@@ -52,7 +52,7 @@
                             </div>
                             <div class="col-6">
                                 <p>UUID:   <span t-field="o.name"/></p>       
-                                <p>Fecha de sellado:   <span t-field="o.stamp_date"/></p>
+                                <!-- <p>Fecha de sellado:   <span t-field="o.stamp_date"/></p> -->
                                 <p>Tipo de comprobante:   <span t-field="o.document_type"/></p>
                             </div>
                         </div>
