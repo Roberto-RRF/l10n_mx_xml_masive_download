@@ -129,6 +129,11 @@ class DownloadedXmlSat(models.Model):
         string='Status',
         default='draft',
     )
+    sat_state = fields.Selection([
+        ('Valido', 'Valido'),
+        ('Cancelado','Cancelado'),
+        ('No Encontrado', 'No encontrado')
+    ])
     payment_method = fields.Selection([('PPD','PPD'),('PUE','PUE')], string='Metodo de Pago')
     sub_total = fields.Float(string="Sub Total", required=True)
     amount_total = fields.Float(string="Total", required=True)
@@ -307,22 +312,7 @@ class DownloadedXmlSat(models.Model):
                         new_edi_doc.invoice_ids = [(6,0, invoice_rel_ids)]
         else: 
             raise UserError("Error adjuntando pago, verifique que la factura exista y tenga un pago creado")
-    
-    # Manage access to model
-    def unlink(self):
-        if not self.env.user.can_delete_xml:
-            raise AccessError("You do not have the permission to delete this record.")
-        return super(DownloadedXmlSat, self).unlink()
-    
-    def create(self, values):
-        if not self.env.user.can_access_xml_models:
-            raise AccessError("You do not have the permission to access this record.")
-        return super(DownloadedXmlSat, self).create(values)
 
-    def write(self, values):
-        if not self.env.user.can_access_xml_models:
-            raise AccessError("You do not have the permission to access this record.")
-        return super(DownloadedXmlSat, self).write(values)
 
 
     
@@ -367,8 +357,9 @@ class AccountEdiApiDownload(models.Model):
     nomina = fields.Boolean(string="Nomina", default=True)
 
     # Estos estan mas dificiles (pendiente)
-    cancelados = fields.Boolean(string="Cancelados", default=True)
-    vigentes = fields.Boolean(string="Vigentes", default=True)
+    cancelado = fields.Boolean(string="Cancelados", default=True)
+    valido = fields.Boolean(string="Vigentes", default=True)
+    no_encontrado = fields.Boolean(string="No encontrado", default=True)
 
         
     @api.depends('xml_sat_ids')
@@ -496,7 +487,7 @@ class AccountEdiApiDownload(models.Model):
                     conceptos_list.append(concepto_info)
                 return (conceptos_list, total_impuestos, total_retenciones)
 
-        def fetch_cfdi_data(RFC, startDate, endDate, xml_type, ingreso, egreso, pago, nomina):
+        def fetch_cfdi_data(RFC, startDate, endDate, xml_type, ingreso, egreso, pago, nomina, valido, cancelado, no_encontrado):
             base_url = 'https://xmlsat.anfepi.com/get-cfdis'
             url = (
                 f"{base_url}?RFC={RFC}&startDate={startDate}&endDate={endDate}&xml_type={xml_type}"
@@ -504,6 +495,9 @@ class AccountEdiApiDownload(models.Model):
                 f"&egreso={'true' if egreso else 'false'}"
                 f"&pago={'true' if pago else 'false'}"
                 f"&nomina={'true' if nomina else 'false'}"
+                f"&valido={'true' if valido else 'false'}"
+                f"&cancelado={'true' if cancelado else 'false'}"
+                f"&no_encontrado={'true' if no_encontrado else 'false'}"
             )
             try:
                 response = requests.get(url)
@@ -519,7 +513,7 @@ class AccountEdiApiDownload(models.Model):
             
         xml_sat_ids = []
 
-        response = fetch_cfdi_data(self._get_default_vat(), self.date_start, self.date_end, self.cfdi_type, self.ingreso, self.egreso, self.pago, self.nomina)
+        response = fetch_cfdi_data(self._get_default_vat(), self.date_start, self.date_end, self.cfdi_type, self.ingreso, self.egreso, self.pago, self.nomina, self.valido, self.cancelado, self.no_encontrado)
 
         if response:
             for xml in response["xmls"]:
@@ -596,21 +590,7 @@ class AccountEdiApiDownload(models.Model):
             'state':'updated',
         })
 
-    # Manage access to model
-    def unlink(self):
-        if not self.env.user.can_delete_xml:
-            raise AccessError("You do not have the permission to delete this record.")
-        return super(AccountEdiApiDownload, self).unlink()
-    
-    def create(self, values):
-        if not self.env.user.can_access_xml_models:
-            raise AccessError("You do not have the permission to access this record.")
-        return super(AccountEdiApiDownload, self).create(values)
 
-    def write(self, values):
-        if not self.env.user.can_access_xml_models:
-            raise AccessError("You do not have the permission to access this record.")
-        return super(AccountEdiApiDownload, self).write(values)
     
 
   

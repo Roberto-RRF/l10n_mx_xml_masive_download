@@ -5,8 +5,8 @@
        <t t-call="web.html_container">
            <t t-foreach="docs" t-as="o">
            
-               <t t-call="web.internal_layout">
-                   <div class="page" t-attf-style="transform: rotate(-90deg); transform-origin: top left; width: 100vh; height: 100vw; position: absolute; top: 100%; left: 0;">
+               <t t-call="web.basic_layout">
+                   <div class="page">
                    
                         <h1>Factura: </h1>
                         <div class="row">
@@ -63,12 +63,12 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Descripcion</th>
-                                    <th>Clave Sat</th>
-                                    <th>Cantidad Unidad</th>
-                                    <th>Valor Unitario</th>
-                                    <th>Importe</th>
-                                    <th>Impuestos y Retenciones</th>
+                                    <th style="width:30%">Descripcion</th>
+                                    <th style="width:14%">Clave Sat</th>
+                                    <th style="width:14%">Cantidad Unidad</th>
+                                    <th style="width:14%">Valor Unitario</th>
+                                    <th style="width:14%">Importe</th>
+                                    <th style="width:14%">Impuestos y Retenciones</th>
                                     
                                 </tr>
                             </thead>
@@ -78,7 +78,7 @@
                                     <t t-set="product_metrics" t-value="line.product_metrics"/>
 
                                     <tr>
-                                        <td><t t-esc="line.description"/></td>
+                                        <td style="p-2"><t t-esc="line.description" /></td>
                                         <td><t t-esc="line.sat_id"/></td>
                                         <td><span><t t-esc="quantity"/> <t t-esc="product_metrics"/></span></td>
                                         <td><t t-esc="'{:,}'.format(line.unit_value)"/></td>

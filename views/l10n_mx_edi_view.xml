@@ -16,7 +16,11 @@
                     <field name="cfdi_type" optional="show"/>
                     <field name="cfdi_usage" optional="show"/>
                     <field name="document_type" optional="show"/>
-                    <field name="state" optional="show"/>
+                    <field name="state" widget="badge" 
+                        decoration-info="state == 'not_imported'"
+                        decoration-success="state == 'posted'"
+                        decoration-warning="state == 'cancel'"
+                    />  
                     <field name="document_date" optional="show"/>
                     <field name="sub_total" optional="show"/>
                     <field name="amount_total" optional="show"/>
@@ -121,7 +125,7 @@
                 <form>
                     <header>
                         <button name="action_download" string="Import" class="oe_highlight" type="object" invisible="state!='not_imported'" />             
-                        <button name="action_update" string="Actualizar Lote" class="oe_highlight" type="object" invisible="state=='not_imported'" />             
+                        <button name="action_update" string="Actualizar Lote" class="oe_highlight" type="object" invisible="state=='not_imported'"/>             
                         <field name="state" widget="statusbar" statusbar_visible="not_imported,imported,updated,error"/>
                     </header>
                     <sheet>
@@ -149,12 +153,15 @@
                            
                             </group>
                             <group>
+                                <separator string="Tipo de documento" colspan="2"/>
                                 <field name="ingreso" readonly="state!='not_imported'"/>
                                 <field name="egreso" readonly="state!='not_imported'"/>
                                 <field name="pago" readonly="state!='not_imported'"/>
                                 <field name="nomina" readonly="state!='not_imported'"/>
-                                <!-- <field name="cancelados" readonly="state!='not_imported'"/>
-                                <field name="vigentes" readonly="state!='not_imported'"/> -->
+                                <separator string="Estatus SAT" colspan="2"/>
+                                <field name="cancelado" readonly="state!='not_imported'"/>
+                                <field name="valido" readonly="state!='not_imported'"/>
+                                <field name="no_encontrado" readonly="state!='not_imported'"/>
                             </group>  
                         </group>
                     </sheet>
@@ -168,14 +175,14 @@
             <field name="view_mode">tree,form</field>
             <field name="target">current</field>
         </record>
-        <menuitem id="account_edi_api_download_menu" parent="account.menu_finance_entries_actions" action="account_edi_api_download_action" sequence="1" name="Importar XMLs del SAT" />
+        <menuitem id="account_edi_api_download_menu" parent="account.menu_finance_entries_actions" action="account_edi_api_download_action" sequence="1" name="Importar XMLs del SAT" groups="l10n_mx_xml_masive_download.group_access_xml_sat_user"/>
         
         <record id="account_edi_download_xml_sat_view_action" model="ir.actions.act_window">
             <field name="name">XMLs Descargados del SAT</field>
             <field name="res_model">account.edi.downloaded.xml.sat</field>
             <field name="view_mode">tree,form</field>
         </record>
-        <menuitem id="account_edi_download_xml_sat_view_menu" parent="account.menu_finance_entries_actions" action="account_edi_download_xml_sat_view_action" name="XML SAT"/>
+        <menuitem id="account_edi_download_xml_sat_view_menu" parent="account.menu_finance_entries_actions" action="account_edi_download_xml_sat_view_action" name="XML SAT" groups="l10n_mx_xml_masive_download.group_access_xml_sat_user"/>
 
     </data>
 </odoo>

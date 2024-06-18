@@ -14,9 +14,9 @@ XML Masive Download from SAT WebService.
     'depends': ['l10n_mx_edi','account','base'],
     'data': [
         'security/ir.model.access.csv',
+        'security/groups.xml',
         'views/l10n_mx_edi_view.xml',
         'views/res_company_view.xml',
-        'views/res_users_view.xml',
         'security/ir_rules.xml',
         'models/server_actions.xml',
         'report/product_report.xml',
