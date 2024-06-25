@@ -62,6 +62,7 @@ PAYMENT_METHOD = [
     ("28", "Tarjeta de débito"),
     ("29", "Tarjeta de servicios"),
     ("30", "Aplicación de anticipos"),
+    ("31", "Intermediario pagos")
     ("99", "Por definir")
 ]
 
