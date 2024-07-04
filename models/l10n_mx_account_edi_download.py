@@ -72,7 +72,6 @@ TAX_REGIME = [
     ("605", "Sueldos y Salarios e Ingresos Asimilados a Salarios"),
     ("606", "Arrendamiento"),
     ("607", "Régimen de Enajenación o Adquisición de Bienes"),
-    ("608", "Demás ingresos"),
     ("609", "Consolidación"),
     ("610", "Residentes en el Extranjero sin Establecimiento Permanente en México"),
     ("611", "Ingresos por Dividendos (socios y accionistas)"),
@@ -125,6 +124,7 @@ class DownloadedXmlSat(models.Model):
             ('draft', 'Borrador'),
             ('posted', 'Publicado'),
             ('cancel', 'Cancelado'),
+            ('ignored', 'Ignorado'),
             ('error_relating', 'Error Relacionando'),
         ],
         string='Status',
@@ -147,6 +147,7 @@ class DownloadedXmlSat(models.Model):
     ], string='Tipo de Documento')
     cfdi_usage = fields.Selection(USO_CFDI, string="Uso CFDI")
     imported = fields.Boolean(string="Importado", default=False)
+    
     downloaded_product_id = fields.One2many(
         'account.edi.downloaded.xml.sat.products',
         'downloaded_invoice_id',
@@ -224,6 +225,8 @@ class DownloadedXmlSat(models.Model):
                 'invoice_line_ids': [],
                 'currency_id': self.env['res.currency'].search([('name', '=',self.divisa)],limit=1).id,
                 'l10n_edi_imported_from_sat': True,
+                'payment_method':self.payment_method,
+                'uso_sat':self.cfdi_usage,
                 'xml_imported_id': item.id
             }
 
@@ -314,7 +317,8 @@ class DownloadedXmlSat(models.Model):
         else: 
             raise UserError("Error adjuntando pago, verifique que la factura exista y tenga un pago creado")
 
-
+    def action_ignor(self):
+        self.state = 'ignored'
 
     
 class AccountEdiApiDownload(models.Model):
@@ -356,7 +360,7 @@ class AccountEdiApiDownload(models.Model):
     egreso = fields.Boolean(string="Egreso", default=True)
     pago = fields.Boolean(string="Pago", default=True)
     nomina = fields.Boolean(string="Nomina", default=True)
-
+    traslado = fields.Boolean(string="Traslado", default=True)
     # Estos estan mas dificiles (pendiente)
     cancelado = fields.Boolean(string="Cancelados", default=True)
     valido = fields.Boolean(string="Vigentes", default=True)
@@ -388,6 +392,7 @@ class AccountEdiApiDownload(models.Model):
         Used to compare descriptions that have dates or numbers
         """
         def similar(a, b):
+            print()
             return SequenceMatcher(None, a, b).ratio()
         
         def _l10n_mx_edi_import_cfdi_get_tax_from_node(self, tax_node, is_withholding=False):
@@ -463,7 +468,6 @@ class AccountEdiApiDownload(models.Model):
                         ('downloaded_invoice_id.partner_id', '!=', False)
                         ]
                     products = self.env['account.edi.downloaded.xml.sat.products'].search(domain, limit=1)
-                    
                     final_product = False
                     if products:
                         for product in products:
@@ -488,7 +492,7 @@ class AccountEdiApiDownload(models.Model):
                     conceptos_list.append(concepto_info)
                 return (conceptos_list, total_impuestos, total_retenciones)
 
-        def fetch_cfdi_data(RFC, startDate, endDate, xml_type, ingreso, egreso, pago, nomina, valido, cancelado, no_encontrado):
+        def fetch_cfdi_data(RFC, startDate, endDate, xml_type, ingreso, egreso, pago, nomina, valido, cancelado, no_encontrado, traslado):
             base_url = 'https://xmlsat.anfepi.com/get-cfdis'
             url = (
                 f"{base_url}?RFC={RFC}&startDate={startDate}&endDate={endDate}&xml_type={xml_type}"
@@ -496,6 +500,7 @@ class AccountEdiApiDownload(models.Model):
                 f"&egreso={'true' if egreso else 'false'}"
                 f"&pago={'true' if pago else 'false'}"
                 f"&nomina={'true' if nomina else 'false'}"
+                f"&traslado={'true' if traslado else 'false'}"
                 f"&valido={'true' if valido else 'false'}"
                 f"&cancelado={'true' if cancelado else 'false'}"
                 f"&no_encontrado={'true' if no_encontrado else 'false'}"
@@ -514,7 +519,7 @@ class AccountEdiApiDownload(models.Model):
             
         xml_sat_ids = []
 
-        response = fetch_cfdi_data(self._get_default_vat(), self.date_start, self.date_end, self.cfdi_type, self.ingreso, self.egreso, self.pago, self.nomina, self.valido, self.cancelado, self.no_encontrado)
+        response = fetch_cfdi_data(self._get_default_vat(), self.date_start, self.date_end, self.cfdi_type, self.ingreso, self.egreso, self.pago, self.nomina, self.valido, self.cancelado, self.no_encontrado, self.traslado)
 
         if response:
             for xml in response["xmls"]:
