@@ -531,6 +531,7 @@ class AccountEdiApiDownload(models.Model):
                 return None     
             
         xml_sat_ids = []
+        create_contact = self.env['ir.config_parameter'].sudo().get_param('l10n_mx_xml_masive_download.create_contact')
 
         response = fetch_cfdi_data(self._get_default_vat(), self.date_start, self.date_end, self.cfdi_type, self.ingreso, self.egreso, self.pago, self.nomina, self.valido, self.cancelado, self.no_encontrado, self.traslado)
 
@@ -559,14 +560,34 @@ class AccountEdiApiDownload(models.Model):
                 """ 'uuid', 'supplier_rfc', 'customer_rfc', 'amount_total', 'cfdi_node', 'usage', 'payment_method'
                 'bank_account', 'sello', 'sello_sat', 'cadena', 'certificate_number', 'certificate_sat_number'
                 'expedition', 'fiscal_regime', 'emission_date_str', 'stamp_date' """
+                
                 tax_regime = ""
+                rfc = ""
+                name = ""
+                zip = ""
                 # Buscar el partner
                 if(self.cfdi_type == 'emitidos'):
-                    partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('customer_rfc'))], limit=1)
+                    rfc = cfdi_infos.get('customer_rfc')
+                    partner = self.env['res.partner'].search([('vat', '=', rfc)], limit=1)
                     tax_regime = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'}).get("RegimenFiscal")
+                    name = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'}).get("Nombre")
+                    zip = root.find('.//cfdi:Receptor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'}).get("DomicilioFiscalReceptor")
                 else: 
-                    partner = self.env['res.partner'].search([('vat', '=', cfdi_infos.get('supplier_rfc'))], limit=1)
+                    rfc = cfdi_infos.get('supplier_rfc')
+                    partner = self.env['res.partner'].search([('vat', '=', rfc)], limit=1)
                     tax_regime = root.find('.//cfdi:Emisor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'}).get("RegimenFiscal")
+                    name = root.find('.//cfdi:Emisor', namespaces={'cfdi': 'http://www.sat.gob.mx/cfd/4'}).get("Nombre")
+                    zip = cfdi_infos.get('expedition')
+
+                # Si no hay partner y en ajustes esta configurado para crear contacto, lo va a crear 
+                if not partner and create_contact: 
+                    partner = self.env['res.partner'].create({
+                        'vat':rfc,
+                        'name': name,
+                        'country_id':156, # ID de México
+                        'l10n_mx_edi_fiscal_regime':tax_regime,
+                        'zip':zip
+                    })
                 vals = {
                     'name': cfdi_infos.get('uuid'),
                     'cfdi_type': self.cfdi_type,
