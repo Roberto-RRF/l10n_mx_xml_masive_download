@@ -178,6 +178,10 @@ class DownloadedXmlSat(models.Model):
             move = self.env['account.move'].search([('stored_sat_uuid', '=', item.name)], limit=1)
             if move:
                 item.write({'invoice_id': move.id, 'state': move.state})
+
+    def action_wizard_relate(self):
+        action = self.env.ref('l10n_mx_xml_masive_download.action_open_invoice_wizard').read()[0]
+        return action
     
     def generate_pdf_attatchment(self, account_id):
 

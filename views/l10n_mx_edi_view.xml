@@ -52,7 +52,7 @@
                     <header>
                         <button string="Importar Factura" name="action_import_invoice" type="object" class="oe_highlight" invisible="imported==True or document_type=='P'"/> 
                         <button string="Adjuntar Complemento" name="action_add_payment" type="object" class="oe_highlight" invisible="document_type!='P'"/> 
-                        <button string="Ignorar XML" name="action_ignor"  class="oe_highlight" type="object" invisible="state=='ignored'"/>
+                        <button string="Relacionar Manualmente" name="action_wizard_relate"  class="oe_highlight" type="object" invisible="imported==True or document_type=='P'"/>
                         <field name="state" widget="statusbar" statusbar_visible="not_imported,draft,posted,cancel,ignored,error_relating"/>
                     </header>
                     <sheet>
@@ -95,8 +95,8 @@
                             </tree>
                         </field>
                         <group>
-                            <field name="sub_total" readonly="1"/>
-                            <field name="amount_total" readonly="1"/>
+                            <field name="sub_total" widget='monetary' readonly="1"/>
+                            <field name="amount_total"  widget='monetary' readonly="1"/>
                         </group>
 
                     </sheet>
