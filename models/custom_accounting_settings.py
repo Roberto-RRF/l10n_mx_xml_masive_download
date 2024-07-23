@@ -3,7 +3,7 @@ from odoo import models, fields, api # type: ignore
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
-    create_contact = fields.Boolean(string="Creacion Automatica de Contactos")
+    create_contact = fields.Boolean(string="Creacion Automatica de Contactos", check_company=True)
 
     def set_values(self):
         super(ResConfigSettings, self).set_values()

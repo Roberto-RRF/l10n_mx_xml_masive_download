@@ -147,6 +147,7 @@ class DownloadedXmlSat(models.Model):
     ], string='Tipo de Documento')
     cfdi_usage = fields.Selection(USO_CFDI, string="Uso CFDI")
     imported = fields.Boolean(string="Importado", default=False)
+    discount = fields.Float(string="Descuento")
     
     downloaded_product_id = fields.One2many(
         'account.edi.downloaded.xml.sat.products',
@@ -222,9 +223,7 @@ class DownloadedXmlSat(models.Model):
 
     def action_import_invoice(self):
         for item in self:
-
-            ref = (self.serie + '/' if self.serie else '') + (self.folio if self.folio else '')
-
+            discountFlag = False
             ref = (self.serie + '/' if self.serie else '') + (self.folio if self.folio else '')
 
             account_move_dict = {
@@ -244,7 +243,11 @@ class DownloadedXmlSat(models.Model):
                 'xml_imported_id': item.id
             }
 
+            discount = 0
             for concepto in item.downloaded_product_id:
+                    if concepto.discount:
+                        discount = abs(concepto.discount / concepto.quantity / concepto.unit_value)* 100
+                    
                     account_move_dict['invoice_line_ids'].append((0, 0, {
                     'product_id': concepto.product_rel.id,
                     'name': concepto.description,
@@ -254,9 +257,11 @@ class DownloadedXmlSat(models.Model):
                     'credit': concepto.total_amount,
                     'tax_ids': concepto.tax_id,
                     'downloaded_product_rel': concepto.id,
+                    'discount': discount if discount else None
                 }))
             account_move = self.env['account.move'].create(account_move_dict)
             item.write({'invoice_id': account_move.id, 'state': 'draft'})
+
 
             
             self.generate_pdf_attatchment(account_move.id)
@@ -451,7 +456,7 @@ class AccountEdiApiDownload(models.Model):
                     descripcion = concepto_element.get('Descripcion')
                     valor_unitario = concepto_element.get('ValorUnitario')
                     importe = concepto_element.get('Importe')
-
+                    descuento = concepto_element.get('Descuento')
 
                     taxes = []
                     taxes_ids = []
@@ -505,6 +510,7 @@ class AccountEdiApiDownload(models.Model):
                         'downloaded_invoice_id': False,
                         'product_rel': final_product.id if final_product else False,
                         'tax_id': taxes_ids if taxes_ids else False,
+                        'discount': -float(descuento) if descuento else 0.0,
                     }
                     conceptos_list.append(concepto_info)
                 return (conceptos_list, total_impuestos, total_retenciones)
@@ -592,6 +598,8 @@ class AccountEdiApiDownload(models.Model):
                         'l10n_mx_edi_fiscal_regime':tax_regime,
                         'zip':zip
                     })
+                
+                print("Descuento: "+str(root.get("Descuento")))
                 vals = {
                     'name': cfdi_infos.get('uuid'),
                     'cfdi_type': self.cfdi_type,
@@ -609,7 +617,8 @@ class AccountEdiApiDownload(models.Model):
                     'divisa':root.get('Moneda'),
                     'cfdi_usage': cfdi_infos.get('usage'),
                     'tax_regime': tax_regime,
-                    'batch_id':self.id
+                    'batch_id':self.id,
+                    'discount': -float(root.get("Descuento")) if root.get("Descuento") else None,
                 }
 
                 if root.get('TipoDeComprobante') == 'P':
@@ -623,16 +632,8 @@ class AccountEdiApiDownload(models.Model):
                 products, total_impuestos, total_retenciones = get_products(xml["xmlFile"])
                 vals['total_impuestos'] = total_impuestos
                 vals['total_retenciones'] = total_retenciones
+                
                 if products:
-                    """if root.get('Descuento') is not None:
-                        descuento = -float(root.get('Descuento'))
-                        products.append({
-                            'quantity': 1,
-                            'description': "DESCUENTO",
-                            'unit_value': descuento,
-                            'total_amount': descuento,
-                            'downloaded_invoice_id': False,
-                        })"""
                     if root.get('TipoDeComprobante') == 'P':
                         for product in products:
                             product['total_amount'] = float(monto_total_pagos)
@@ -652,9 +653,7 @@ class AccountEdiApiDownload(models.Model):
 
                     # Update the main record with the attachment ID
                     record.write({'attachment_id': attachment.id})
-                    
-                #xml_sat_ids.append((0, 0, vals))
-        self.write({'state': 'imported'}) #'xml_sat_ids': xml_sat_ids,
+        self.write({'state': 'imported'})
     
     def action_update(self): 
         self.action_download()
@@ -675,9 +674,9 @@ class DownloadedXmlSatProducts(models.Model):
     total_amount = fields.Float(string="Importe", required=True)
     product_rel = fields.Many2one('product.product', string="Producto Odoo")
     tax_id = fields.Many2many('account.tax', string="Impuestos")
+    discount = fields.Float(string="Descuento")
 
     downloaded_invoice_id = fields.Many2one(
         'account.edi.downloaded.xml.sat',
         string='Downloaded product ID',
         ondelete="cascade")
-    

@@ -70,6 +70,7 @@
                                 <field name="partner_id"/>
                                 <field name="cfdi_type" readonly="1" />
                                 <field name="document_date" readonly="1"/>
+                                <field name="discount" readonly="1" invisible="not discount" />
                             </group>
                         </group>
 
@@ -82,6 +83,7 @@
                                 <field name="tax_id" readonly="1" widget="many2many_tags"/>
                                 <field name="quantity" readonly="1"/>
                                 <field name="unit_value" readonly="1"/>
+                                <field name="discount" readonly="1"/>
                                 <field name="total_amount" readonly="1"/>
                             </tree>
                         </field>
