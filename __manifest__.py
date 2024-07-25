@@ -29,4 +29,5 @@ XML Masive Download from SAT WebService.
     'images': ['static/description/icon.png'],
     'auto_install': False,
     "license": "AGPL-3",
+
 }

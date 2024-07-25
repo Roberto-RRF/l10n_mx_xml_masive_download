@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models, _, tools # type: ignore
-from odoo.exceptions import UserError, ValidationError, AccessError # type: ignore
+from odoo import api, fields, models, _ # type: ignore
+from odoo.exceptions import UserError # type: ignore
 from lxml import etree # type: ignore
 from lxml.objectify import fromstring # type: ignore
 import base64
@@ -275,7 +275,7 @@ class DownloadedXmlSat(models.Model):
             }
             self.env['ir.attachment'].create(attachment_values)
             account_move.create_edi_document_from_attatchment(self.name)
-            #item.write({'imported': True})
+            item.write({'imported': True})
 
     def action_add_payment(self):
         # Buscar factura
@@ -540,9 +540,10 @@ class AccountEdiApiDownload(models.Model):
                 print("Error during request:", e)
                 return None     
             
-        xml_sat_ids = []
-        create_contact = self.env['ir.config_parameter'].sudo().get_param('l10n_mx_xml_masive_download.create_contact')
-
+        create_contact = self.env.company.l10n_mx_xml_download_automatic_contact_creation
+        api_key = self.env.company.l10n_mx_xml_download_api_key
+        print("Create Contact: "+str(create_contact))
+        print("API KEY: "+str(api_key))
         response = fetch_cfdi_data(self._get_default_vat(), self.date_start, self.date_end, self.cfdi_type, self.ingreso, self.egreso, self.pago, self.nomina, self.valido, self.cancelado, self.no_encontrado, self.traslado)
 
         if response:
@@ -559,13 +560,13 @@ class AccountEdiApiDownload(models.Model):
                 domain = [('name', '=', cfdi_infos.get('uuid'))]
                 if self.env['account.edi.downloaded.xml.sat'].search(domain, limit=1):
                     continue
-                attachment_vals = {
-                    'name': xml["uuid"] + ".xml",
-                    'datas': base64.b64encode(xml["xmlFile"].encode('utf-8')),
-                    'res_model': 'account.edi.downloaded.xml.sat',
-                    'type': 'binary',
-                    'mimetype': 'application/xml',
-                }
+                # attachment_vals = {
+                #     'name': xml["uuid"] + ".xml",
+                #     'datas': base64.b64encode(xml["xmlFile"].encode('utf-8')),
+                #     'res_model': 'account.edi.downloaded.xml.sat',
+                #     'type': 'binary',
+                #     'mimetype': 'application/xml',
+                # }
               
                 """ 'uuid', 'supplier_rfc', 'customer_rfc', 'amount_total', 'cfdi_node', 'usage', 'payment_method'
                 'bank_account', 'sello', 'sello_sat', 'cadena', 'certificate_number', 'certificate_sat_number'
@@ -598,15 +599,18 @@ class AccountEdiApiDownload(models.Model):
                         'l10n_mx_edi_fiscal_regime':tax_regime,
                         'zip':zip
                     })
+
+                factura = None
+                factura = self.env['account.move'].search([('stored_sat_uuid','=',cfdi_infos.get('uuid'))], limit=1)
                 
-                print("Descuento: "+str(root.get("Descuento")))
                 vals = {
                     'name': cfdi_infos.get('uuid'),
                     'cfdi_type': self.cfdi_type,
                     'company_id': self.company_id.id,
+                    'invoice_id': factura.id if factura else None,
                     'partner_id': partner.id if partner else False,
                     'document_date': root.attrib.get('Fecha'),
-                    'state': 'not_imported',
+                    'state': factura.state if factura else 'not_imported',
                     'document_type': root.get('TipoDeComprobante'),
                     'payment_method': cfdi_infos.get('payment_method'),
                     'payment_method_sat': root.get('FormaPago'),
