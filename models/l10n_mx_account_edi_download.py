@@ -499,6 +499,8 @@ class AccountEdiApiDownload(models.Model):
                     try: 
                         if sat_id != 84111506:
                             sat_id = self.env['product.unspsc.code'].search([('code','=',clave_prod_serv)]).id
+                        else: 
+                            sat_id= None
                     except:
                         sat_id = ""
                     # Create a dictionary for each concepto and append it to the list
