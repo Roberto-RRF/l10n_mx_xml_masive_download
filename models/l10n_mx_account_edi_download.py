@@ -496,12 +496,13 @@ class AccountEdiApiDownload(models.Model):
                             if similar(descripcion, product.description) > 0.8:
                                 final_product=product.product_rel
                                 break
-
-                    
-                    
+                    try: 
+                        sat_id = self.env['product.unspsc.code'].search([('code','=',clave_prod_serv)]).id
+                    except:
+                        sat_id = ""
                     # Create a dictionary for each concepto and append it to the list
                     concepto_info = {
-                        'sat_id':self.env['product.unspsc.code'].search([('code','=',clave_prod_serv)]).id,
+                        'sat_id':sat_id,
                         'quantity': cantidad,
                         'product_metrics': clave_unidad,
                         'description': descripcion,
