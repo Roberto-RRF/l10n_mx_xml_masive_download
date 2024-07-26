@@ -497,7 +497,8 @@ class AccountEdiApiDownload(models.Model):
                                 final_product=product.product_rel
                                 break
                     try: 
-                        sat_id = self.env['product.unspsc.code'].search([('code','=',clave_prod_serv)]).id
+                        if sat_id != 84111506:
+                            sat_id = self.env['product.unspsc.code'].search([('code','=',clave_prod_serv)]).id
                     except:
                         sat_id = ""
                     # Create a dictionary for each concepto and append it to the list
