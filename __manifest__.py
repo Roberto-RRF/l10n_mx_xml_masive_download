@@ -23,7 +23,9 @@ XML Masive Download from SAT WebService.
         'models/server_actions.xml',
         'report/product_report.xml',
         'report/ir_actions_report.xml',
-        'views/invoice_wizard_views.xml'
+        'report/reporte_conciliacion_view.xml',
+        'wizard/invoice_wizard_views.xml',
+        'wizard/conciliaton_report_wizard_views.xml',
         
     ],
     'images': ['static/description/icon.png'],
