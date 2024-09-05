@@ -249,7 +249,6 @@ class DownloadedXmlSat(models.Model):
                     account_move_dict['invoice_line_ids'].append((0, 0, {
                     'product_id': concepto.product_rel.id,
                     'name': concepto.description,
-                    'product_id': concepto.product_rel.id,
                     'quantity': concepto.quantity,
                     'price_unit': concepto.unit_value,
                     'credit': concepto.total_amount,
@@ -265,7 +264,7 @@ class DownloadedXmlSat(models.Model):
             self.generate_pdf_attatchment(account_move.id)
             xml_file = self.attachment_id.filtered(lambda x: x.mimetype == 'application/xml')
             attachment_values = {
-                'name': xml_file.name,  # Name of the XML file
+                'name': self.name,  # Name of the XML file
                 'datas': xml_file.datas,  # Read XML file content
                 'res_model': 'account.move',
                 'res_id': account_move.id,
@@ -524,7 +523,7 @@ class AccountEdiApiDownload(models.Model):
                 f"&no_encontrado={'true' if no_encontrado else 'false'}"
             )
             try:
-                response = requests.get(url)
+                response = requests.get(url, verify=False)
                 if response.status_code == 200:
                     return response.json()  # Assuming the response is JSON
                 else:
