@@ -16,11 +16,7 @@
                     <field name="cfdi_type" optional="show"/>
                     <field name="cfdi_usage" optional="show"/>
                     <field name="document_type" optional="show"/>
-                    <field name="state" widget="badge" 
-                        decoration-info="state == 'not_imported'"
-                        decoration-success="state == 'posted'"
-                        decoration-warning="state == 'cancel'"
-                    />  
+                    <field name="state" optional="show"/>  
                     <field name="document_date" optional="show"/>
                     <field name="sub_total" optional="show"/>
                     <field name="amount_total" optional="show"/>
@@ -31,7 +27,7 @@
 
         <record id="view_account_edi_downloaded_xml_sat_tree_search" model="ir.ui.view">
             <field name="name">account.edi.downloaded.xml.sat.view.search</field>
-            <field name="model">account.edi.downloaded.xml.sat</field>
+            <field name="model">account.edi.downloaded.xml.sat</field> 
             <field name="arch" type="xml">
                 <search>
                     <filter string="Con Forma de Pago PUE" name="PUE" domain="[('payment_method','=','PUE')]"/>
@@ -50,14 +46,15 @@
             <field name="arch" type="xml">
                 <form string="XML SAT" create="0">
                     <header>
-                        <button string="Importar Factura" name="action_import_invoice" type="object" class="oe_highlight" invisible="imported==True or document_type=='P'"/> 
-                        <button string="Adjuntar Complemento" name="action_add_payment" type="object" class="oe_highlight" invisible="document_type!='P'"/> 
-                        <button string="Relacionar Manualmente" name="action_wizard_relate"  class="oe_highlight" type="object" invisible="imported==True or document_type=='P'"/>
+                        <button string="Importar Factura" name="action_import_invoice" type="object" class="oe_highlight" attrs="{'invisible': ['|', ('imported', '=', True), ('document_type', '=', 'P')]}"/> 
+                        <button string="Adjuntar Complemento" name="action_add_payment" type="object" class="oe_highlight" attrs="{'invisible': [('document_type', '!=', 'P')]}"/> 
+                        <button string="Relacionar Manualmente" name="action_wizard_relate"  class="oe_highlight" type="object" attrs="{'invisible': ['|', ('imported', '=', True), ('document_type', '=', 'P')]}"/>
                         <field name="state" widget="statusbar" statusbar_visible="not_imported,draft,posted,cancel,ignored,error_relating"/>
                     </header>
                     <sheet>
-                        <div name="button_box" position="inside">
-                            <button class="oe_stat_button" type="object" name="view_invoice" icon="fa-pencil-square-o" invisible="not invoice_id">
+                        <div class="oe_button_box" name="button_box">
+                             <!-- attrs="{'invisible': [('invoice_id', '!=', True)]}" -->
+                            <button class="oe_stat_button" type="object" name="view_invoice" icon="fa-pencil-square-o" attrs="{'invisible': [('invoice_id', '==', False)]}">
                                 <field name="invoice_id" widget="statinfo" string="XML"/>
                             </button>
                         </div>
@@ -70,32 +67,23 @@
                                 <field name="partner_id"/>
                                 <field name="cfdi_type" readonly="1" />
                                 <field name="document_date" readonly="1"/>
-                                <field name="discount" readonly="1" invisible="not discount" />
+                                <field name="discount" readonly="1" attrs="{'invisible': [('discount', '!=', True)]}" />
                             </group>
                         </group>
 
-                        <field name="downloaded_product_id" invisible="document_type == 'P'">
-
+                        <field name="downloaded_product_id">
                             <tree string="Products" editable="bottom" delete="0">
-                                <field name="product_rel"/>
+                                <field name="product_rel"  attrs="{'column_invisible': [('parent.document_type', '==', 'P')]}" />
                                 <field name="sat_id" readonly="1"/>
                                 <field name="description" readonly="1"/>
-                                <field name="tax_id" readonly="1" widget="many2many_tags"/>
+                                <field name="tax_id" readonly="1" widget="many2many_tags"  attrs="{'column_invisible': [('parent.document_type', '==', 'P')]}" />
                                 <field name="quantity" readonly="1"/>
-                                <field name="unit_value" readonly="1"/>
-                                <field name="discount" readonly="1"/>
+                                <field name="unit_value" readonly="1"  attrs="{'column_invisible': [('parent.document_type', '==', 'P')]}" />
+                                <field name="discount" readonly="1"  attrs="{'column_invisible': [('parent.document_type', '==', 'P')]}" />
                                 <field name="total_amount" readonly="1"/>
                             </tree>
                         </field>
-                        <field name="downloaded_product_id" invisible="document_type != 'P'">
-                            <tree string="Products" editable="bottom" delete="0">
-                                <field name="sat_id" readonly="1"/>
 
-                                <field name="description" readonly="1"/>
-                                <field name="quantity" readonly="1"/>
-                                <field name="total_amount" readonly="1"/>
-                            </tree>
-                        </field>
                         <group>
                             <field name="sub_total" widget='monetary' readonly="1"/>
                             <field name="amount_total"  widget='monetary' readonly="1"/>
@@ -138,16 +126,15 @@
             <field name="arch" type="xml">
                 <form>
                     <header>
-                        <button name="action_download" string="Import" class="oe_highlight" type="object" invisible="state!='not_imported'" />             
-                        <button name="action_update" string="Actualizar Lote" class="oe_highlight" type="object" invisible="state=='not_imported'"/>    
-                        
+                        <button name="action_download" string="Importar" class="oe_highlight" type="object" attrs="{'invisible': [('state', '!=', 'not_imported')]}" />             
+                        <button name="action_update" string="Actualizar Lote" class="oe_highlight" type="object" attrs="{'invisible': [('state', '==', 'not_imported')]}"/>    
                         <field name="state" widget="statusbar" statusbar_visible="not_imported,imported,updated,error"/>
                     </header>
                     <sheet>
-                        <div name="button_box" position="inside">
-                        <button class="oe_stat_button" type="object" name="view_xml_sat" icon="fa-archive">
-                             <field name="xml_count" widget="statinfo" string="XML"/>
-                        </button>
+                        <div class="oe_button_box" name="button_box">
+                            <button class="oe_stat_button" type="object" name="view_xml_sat" icon="fa-archive">
+                                <field name="xml_count" widget="statinfo" string="XML"/>
+                            </button>
                         </div>
                         <h1>Descargar XMLs del SAT</h1>
                         <group>
@@ -159,25 +146,26 @@
                             <group>
                                 <field name="vat" readonly="1"/>
                                 <field name="company_id" options="{'no_open' : True}"/>
-                                <field name="cfdi_type" readonly="state!='not_imported'"/>
+
+                                <field name="cfdi_type" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
                                 
                                 
                           
-                                <field name="date_start" readonly="state!='not_imported'"/>
-                                <field name="date_end" readonly="state!='not_imported'"/>
+                                <field name="date_start" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="date_end" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
                            
                             </group>
                             <group>
                                 <separator string="Tipo de documento" colspan="2"/>
-                                <field name="ingreso" readonly="state!='not_imported'"/>
-                                <field name="egreso" readonly="state!='not_imported'"/>
-                                <field name="pago" readonly="state!='not_imported'"/>
-                                <field name="nomina" readonly="state!='not_imported'"/>
-                                <field name="traslado" readonly="state!='not_imported'"/>
+                                <field name="ingreso" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="egreso" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="pago" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="nomina" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="traslado" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
                                 <separator string="Estatus SAT" colspan="2"/>
-                                <field name="cancelado" readonly="state!='not_imported'"/>
-                                <field name="valido" readonly="state!='not_imported'"/>
-                                <field name="no_encontrado" readonly="state!='not_imported'"/>
+                                <field name="cancelado" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="valido" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="no_encontrado" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
                             </group>  
                         </group>
                     </sheet>

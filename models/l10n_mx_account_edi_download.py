@@ -6,13 +6,11 @@ from lxml.objectify import fromstring # type: ignore
 import base64
 import requests # type: ignore
 
-from odoo.addons.l10n_mx_edi.models.l10n_mx_edi_document import ( # type: ignore
-    CFDI_CODE_TO_TAX_TYPE,
-)
 from io import BytesIO
 import xml.etree.ElementTree as ET
 from difflib import SequenceMatcher 
 
+TAX_TYPE_TO_CFDI_CODE = {'isr': '001', 'iva': '002', 'ieps': '003'}
 USO_CFDI  = [
     ("G01", "Adquisición de mercancías"),
     ("G02", "Devoluciones, descuentos o bonificaciones"),
@@ -205,7 +203,7 @@ class DownloadedXmlSat(models.Model):
             'total_retenciones':self.total_retenciones,
 
         }
-        result, format = self.env["ir.actions.report"]._render_qweb_pdf('l10n_mx_xml_masive_download.report_product', [self.id], datas)
+        result, format = self.env.ref('l10n_mx_xml_masive_download.action_report_product_template')._render_qweb_pdf(self.id, data=datas)
 
         result = base64.b64encode(result)
 
@@ -249,7 +247,6 @@ class DownloadedXmlSat(models.Model):
                     if concepto.discount:
                         discount = abs(concepto.discount / concepto.quantity / concepto.unit_value)* 100
                     exchange_rate = 1
-                    amount_base_currency = concepto.total_amount / exchange_rate
 
                     account_move_dict['invoice_line_ids'].append((0, 0, {
                         'product_id': concepto.product_rel.id,
@@ -276,12 +273,13 @@ class DownloadedXmlSat(models.Model):
                 'mimetype': 'application/xml',
             }
             self.env['ir.attachment'].create(attachment_values)
-            account_move.create_edi_document_from_attatchment(self.name)
+            account_move.create_edi_document_from_attatchment()
             item.write({'imported': True})
 
     def action_add_payment(self):
         # Buscar factura
-        root = ET.fromstring(base64.b64decode(self.attachment_id.filtered(lambda x: x.mimetype == 'application/xml')))
+        xml_file = self.attachment_id.filtered(lambda x: x.mimetype == 'application/xml')
+        root = ET.fromstring(base64.b64decode(xml_file.datas))
         namespace = {'cfdi': 'http://www.sat.gob.mx/cfd/4', 'pago20': 'http://www.sat.gob.mx/Pagos20'}
         id_documentos = []
 
@@ -289,8 +287,9 @@ class DownloadedXmlSat(models.Model):
             id_documento = docto_relacionado.get('IdDocumento')
             id_documentos.append(id_documento)
 
-        moves = self.env['account.move'].search([('l10n_mx_edi_cfdi_uuid','in', id_documentos)])
-
+        moves = self.env['account.move'].search([('stored_sat_uuid','in', id_documentos)])
+        print("Move: \n\n\n")
+        print(moves)
         # Si hay factura, verificar si el estatus es in_payment 
 
         if moves:
@@ -299,8 +298,10 @@ class DownloadedXmlSat(models.Model):
                     # Buscar el Id del pago
                     
                     payments = self.env['account.payment'].search([('reconciled_invoice_ids','=',move.id)])
-                    xml_file = self.attachment_id.filtered(lambda x: x.mimetype == 'application/xml')
                     for payment in payments:
+                        edi_cfdi33 = self.env['account.edi.format'].search([('code','=','cfdi_3_3')], limit=1)
+                        print("Payment: \n\n\n")
+                        print(payment.reconciled_invoice_ids)
                         attachment_values = {
                                 'name': xml_file.name,  # Name of the XML file
                                 'datas': xml_file.datas,  # Read XML file content
@@ -308,34 +309,19 @@ class DownloadedXmlSat(models.Model):
                                 'res_id': payment.id,
                                 'mimetype': 'application/xml',
                             }
-                        
                         self.write({'invoice_id':move.id, 'imported':True})
                         res = self.env['ir.attachment'].create(attachment_values)
 
-                        edi = self.env['l10n_mx_edi.document']
-    
+                        edi = self.env['account.edi.document']
+
                         edi_data = {
-                                    # 'name' : uuid_name+'.xml',
-                                    'state' : 'payment_sent',
-                                    'sat_state' : 'not_defined',
-                                    'message': '',
-                                    'datetime': fields.Datetime.now(),
-                                    'attachment_uuid': self.name,
-                                    'attachment_id' : res.id,
-                                    'move_id'    : payment.move_id.id,
-                                    }
-                        new_edi_doc = edi.create(edi_data)
+                            'edi_format_id': edi_cfdi33.id,
+                            'move_id': payment.move_id.id,
+                            #state': 'payment_sent',
+                            'attachment_id': res.id,
+                        }
+                        edi.create(edi_data)
 
-                        #### Asociando las Facturas ####
-                        invoice_rel_ids = []
-                        #### Facturas de Cliente ####
-                        if payment.reconciled_invoice_ids:
-                            invoice_rel_ids = payment.reconciled_invoice_ids.ids
-                        #### Facturas de Proveedor ####
-                        if payment.reconciled_bill_ids:
-                            invoice_rel_ids = payment.reconciled_bill_ids.ids
-
-                        new_edi_doc.invoice_ids = [(6,0, invoice_rel_ids)]
         else: 
             raise UserError("Error adjuntando pago, verifique que la factura exista y tenga un pago creado")
 

@@ -6,8 +6,8 @@
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='ref']" position="after">
-                <field name="payment_method" invisible="move_type not in ('in_invoice')"/>
-                <field name="uso_sat" invisible="move_type not in ('in_invoice')"/>
+                <field name="payment_method" attrs="{'invisible': [('move_type', 'not in', ['in_invoice'])]}"/>
+                <field name="uso_sat" attrs="{'invisible': [('move_type', 'not in', ['in_invoice'])]}"/>
             </xpath>
         </field>
     </record>

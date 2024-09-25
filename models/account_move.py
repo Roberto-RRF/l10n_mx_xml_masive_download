@@ -3,6 +3,7 @@ from odoo.exceptions import UserError
 import base64
 from lxml import etree
 import xml.etree.ElementTree as ET
+from lxml.objectify import fromstring # type: ignore
 
 USO_CFDI  = [
     ("G01", "Adquisición de mercancías"),
@@ -70,23 +71,6 @@ class AccountMove(models.Model):
             else: 
                 record.stored_sat_uuid = False
 
-
-    # def _get_default_uuid_from_xml_attachment(self):
-    #     for record in self:
-    #         if not record.stored_sat_uuid:
-    #             attachments = record.attachment_ids.filtered(lambda x: x.mimetype == 'application/xml')
-    #             if attachments:
-    #                 for attachment in attachments:
-    #                     try:
-    #                         xml_content = base64.b64decode(attachment.datas)
-    #                         root = ET.fromstring(xml_content)
-    #                         uuid = root.find('.//{http://www.sat.gob.mx/TimbreFiscalDigital}TimbreFiscalDigital').attrib['UUID']
-    #                         print("UUID: "+str(uuid))
-    #                         break
-    #                         record.stored_sat_uuid = uuid
-    #                     except: 
-    #                         record.stored_sat_uuid = False
-
     @api.constrains('state')
     def onchange_update_downloaded_xml_record(self):
         if self.xml_imported_id:
@@ -105,21 +89,20 @@ class AccountMove(models.Model):
             else:
                 download.write({'state': 'error'})
 
-    def create_edi_document_from_attatchment(self, uuid):
-        edi = self.env['l10n_mx_edi.document']
-        edi_content = self.attachment_ids.filtered(lambda m: m.mimetype == 'application/xml')
-        if edi_content:
-            edi_data = {
-                'state' : 'invoice_sent',
-                'datetime': fields.Datetime.now(),
-                'attachment_uuid':uuid,
-                'attachment_id':edi_content.id,
-                'move_id': self.id,
-            }
-            new_edi_doc = edi.create(edi_data)
+    def create_edi_document_from_attatchment(self):
 
-            # Asociar las facturas
-            new_edi_doc.invoice_ids = [(6, 0, [self.id])]  # A lo mejor es aqui, en vez de poner ".invoice_ids" poner payment 
+        edi_cfdi33 = self.env['account.edi.format'].search([('code','=','cfdi_3_3')], limit=1)
+        edi_document_vals_list = []
+        for move in self:
+            edi_content = move.attachment_ids.filtered(lambda m: m.mimetype == 'application/xml')
+            if edi_content:
+                edi_document_vals_list.append({
+                    'edi_format_id': edi_cfdi33.id,
+                    'move_id': move.id,
+                    'state': 'sent',
+                    'attachment_id': edi_content.id,
+                })
+        res = self.env['account.edi.document'].create(edi_document_vals_list)
 
 
     # This methos was taken from odoo 16.0 
