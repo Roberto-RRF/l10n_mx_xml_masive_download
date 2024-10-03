@@ -515,7 +515,8 @@ class AccountEdiApiDownload(models.Model):
                 return (conceptos_list, total_impuestos, total_retenciones)
 
         def fetch_cfdi_data(RFC, startDate, endDate, xml_type, ingreso, egreso, pago, nomina, valido, cancelado, no_encontrado, traslado):
-            base_url = 'https://xmlsat.anfepi.com/get-cfdis'
+            base_url ='http://127.0.0.1:5000/get-cfdis'
+            #base_url = 'https://xmlsat.anfepi.com/get-cfdis'
             url = (
                 f"{base_url}?RFC={RFC}&startDate={startDate}&endDate={endDate}&xml_type={xml_type}"
                 f"&ingreso={'true' if ingreso else 'false'}"
