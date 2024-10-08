@@ -9,13 +9,13 @@ class UploadFileWizard(models.TransientModel):
     _name = 'upload.fiel.wizard'
     _description = 'Wizard to upload files'
 
-    company_name = fields.Char(string='Company Name', readonly=True)
-    vat_id = fields.Char(string='VAT ID', readonly=True)
-    cer_file = fields.Binary(string='CER File', required=True)
+    company_name = fields.Char(string='Nombre', readonly=True)
+    vat_id = fields.Char(string='RFC', readonly=True)
+    cer_file = fields.Binary(string='Archivo .cer', required=True)
     cer_filename = fields.Char(string='CER File Name')
-    key_file = fields.Binary(string='KEY File', required=True)
+    key_file = fields.Binary(string='Archivo .key', required=True)
     key_filename = fields.Char(string='KEY File Name')
-    password = fields.Char(string='Password', required=True)
+    password = fields.Char(string='Contraseña', required=True)
 
     @api.model
     def default_get(self, fields_list):
@@ -56,6 +56,7 @@ class UploadFileWizard(models.TransientModel):
         except requests.exceptions.RequestException as e:
             raise UserError(f"Error sending files: {e}")
 
+        raise UserError("ERORR")
         # Handle the server response
         if response.status_code == 200:
             return {'type': 'ir.actions.act_window_close'}
