@@ -55,8 +55,6 @@ class UploadFileWizard(models.TransientModel):
             response.raise_for_status()  # Check if the request was successful
         except requests.exceptions.RequestException as e:
             raise UserError(f"Error sending files: {e}")
-
-        raise UserError("ERORR")
         # Handle the server response
         if response.status_code == 200:
             return {'type': 'ir.actions.act_window_close'}
