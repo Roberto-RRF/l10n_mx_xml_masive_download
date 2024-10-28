@@ -31,7 +31,8 @@ class UploadFileWizard(models.TransientModel):
     
 
     def action_upload_files(self):
-
+        base_url ='http://127.0.0.1:5000/upload-documents'
+        #base_url = 'https://xmlsat.anfepi.com/upload-documents'
 
         
 
@@ -48,7 +49,7 @@ class UploadFileWizard(models.TransientModel):
         # Send POST request to the Flask server
         try:
             response = requests.post(
-                'https://xmlsat.anfepi.com/upload-documents',
+                base_url,
                 data=data,
                 files=files
             )
@@ -57,6 +58,12 @@ class UploadFileWizard(models.TransientModel):
             raise UserError(f"Error sending files: {e}")
         # Handle the server response
         if response.status_code == 200:
+            print("Response: ")
+            response = response.json()
+            if response['apiKey']:
+                self.env.company.write({
+                    'l10n_mx_xml_download_api_key':response['apiKey']
+                })
             return {'type': 'ir.actions.act_window_close'}
         else:
             raise UserError("Error al subir la información, verifique que este correcta ")

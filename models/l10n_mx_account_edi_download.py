@@ -5,7 +5,7 @@ from lxml import etree # type: ignore
 from lxml.objectify import fromstring # type: ignore
 import base64
 import requests # type: ignore
-
+import hashlib
 from odoo.addons.l10n_mx_edi.models.l10n_mx_edi_document import ( # type: ignore
     CFDI_CODE_TO_TAX_TYPE,
 )
@@ -515,10 +515,13 @@ class AccountEdiApiDownload(models.Model):
                 return (conceptos_list, total_impuestos, total_retenciones)
 
         def fetch_cfdi_data(RFC, startDate, endDate, xml_type, ingreso, egreso, pago, nomina, valido, cancelado, no_encontrado, traslado):
-            #base_url ='http://127.0.0.1:5000/get-cfdis'
-            base_url = 'https://xmlsat.anfepi.com/get-cfdis'
+            base_url ='http://127.0.0.1:5000/get-cfdis'
+            #base_url = 'https://xmlsat.anfepi.com/get-cfdis'
+            api_key = self.env.user.company_id.l10n_mx_xml_download_api_key
+            hashed_api_key = hashlib.sha512(api_key.encode()).hexdigest()
+
             url = (
-                f"{base_url}?RFC={RFC}&startDate={startDate}&endDate={endDate}&xml_type={xml_type}"
+                f"{base_url}?RFC={RFC}&startDate={startDate}&endDate={endDate}&xml_type={xml_type}&api_key={hashed_api_key}"
                 f"&ingreso={'true' if ingreso else 'false'}"
                 f"&egreso={'true' if egreso else 'false'}"
                 f"&pago={'true' if pago else 'false'}"
@@ -526,6 +529,7 @@ class AccountEdiApiDownload(models.Model):
                 f"&traslado={'true' if traslado else 'false'}"
                 f"&valido={'true' if valido else 'false'}"
                 f"&cancelado={'true' if cancelado else 'false'}"
+                f"&no_encontrado={'true' if no_encontrado else 'false'}"
                 f"&no_encontrado={'true' if no_encontrado else 'false'}"
             )
             try:
@@ -540,6 +544,11 @@ class AccountEdiApiDownload(models.Model):
                 print("Error during request:", e)
                 return None     
             
+        # Create Batch Name
+        start_date_str = self.date_start.strftime('%d-%b-%Y')
+        end_date_str = self.date_end.strftime('%d-%b-%Y')
+        self.write({'name': f"{self.cfdi_type} ({start_date_str} - {end_date_str})"})
+        
         create_contact = self.env.company.l10n_mx_xml_download_automatic_contact_creation
         api_key = self.env.company.l10n_mx_xml_download_api_key
         response = fetch_cfdi_data(self._get_default_vat(), self.date_start, self.date_end, self.cfdi_type, self.ingreso, self.egreso, self.pago, self.nomina, self.valido, self.cancelado, self.no_encontrado, self.traslado)
@@ -656,7 +665,7 @@ class AccountEdiApiDownload(models.Model):
                     # Update the main record with the attachment ID
                     record.write({'attachment_id': attachment.id})
         self.write({'state': 'imported'})
-    
+
     def action_update(self): 
         self.action_download()
         self.write({
