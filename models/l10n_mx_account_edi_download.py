@@ -585,10 +585,16 @@ class AccountEdiApiDownload(models.Model):
         def fetch_cfdi_data(RFC, startDate, endDate, xml_type, ingreso, egreso, pago, nomina, valido, cancelado, no_encontrado, traslado):
             #base_url ='http://127.0.0.1:5000/get-cfdis'
             base_url = 'https://xmlsat.anfepi.com/get-cfdis'
-            api_key = self.env.user.company_id.l10n_mx_xml_download_api_key
+            company = self.env['res.company'].search([('id', '=', self.env.company.id)], limit=1)
+            api_key = company.l10n_mx_xml_download_api_key
             hashed_api_key = ''
             if api_key:
+                print("\n\n\n")
                 hashed_api_key = hashlib.sha512(api_key.encode()).hexdigest()
+                print(api_key)
+                print(hashed_api_key)
+
+                #raise UserError(f"API KEY: {api_key} \nHASHED APIKEY: {hashed_api_key}")
     
 
             url = (
