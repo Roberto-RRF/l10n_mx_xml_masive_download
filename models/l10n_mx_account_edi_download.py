@@ -396,15 +396,22 @@ class DownloadedXmlSat(models.Model):
             self._fetch_sat_status(self.partner_id.vat, self.company_id.vat, self.amount_total, self.name)
 
     def cron_fetch_sat_status(self):
-        # Calculate the date 31 days ago
-        last_31_days = date.today() - timedelta(days=31)
-        
-        # Modify the search domain to exclude 'Cancelado' and limit to last 31 days
-        records = self.search([
-            # ('sat_state', '!=', 'Cancelado'),
-            # ('document_date', '>=', last_31_days),
+        # Calculate the start and end dates for the 31-day range
+        start_date = date.today() - timedelta(days=31)
+        end_date = date.today()
+
+        # Convert the dates to string format (YYYY-MM-DD)
+        start_date_str = fields.Date.to_string(start_date)
+        end_date_str = fields.Date.to_string(end_date)
+        print("\n\n\n")
+        print(start_date_str)
+        print(end_date_str)
+
+        # Modify the search domain to exclude 'Cancelado' and limit to the last 31 days
+        records = self.env['account.edi.downloaded.xml.sat'].search([
+            ('sat_state', '!=', 'Cancelado'),
         ])
-        
+        raise UserError(len(records))
         for record in records:
             if self.cfdi_type == 'emitidos':
                 record._fetch_sat_status(record.company_id.vat, record.partner_id.vat, record.amount_total, record.name)
