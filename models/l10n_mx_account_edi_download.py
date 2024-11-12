@@ -411,7 +411,6 @@ class DownloadedXmlSat(models.Model):
         records = self.env['account.edi.downloaded.xml.sat'].search([
             ('sat_state', '!=', 'Cancelado'),
         ])
-        raise UserError(len(records))
         for record in records:
             if self.cfdi_type == 'emitidos':
                 record._fetch_sat_status(record.company_id.vat, record.partner_id.vat, record.amount_total, record.name)
