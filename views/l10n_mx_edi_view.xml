@@ -16,10 +16,11 @@
                     <field name="cfdi_type" optional="show"/>
                     <field name="cfdi_usage" optional="show"/>
                     <field name="document_type" optional="show"/>
-                    <field name="state" optional="show"/>  
+                    <field name="state" optional="show" />  
                     <field name="document_date" optional="show"/>
                     <field name="sub_total" optional="show"/>
                     <field name="amount_total" optional="show"/>
+                    <field name="sat_state" optional="show" />
                 </tree>
 
             </field>
@@ -40,7 +41,8 @@
             </field>
         </record>
 
-       <record id="view_account_edi_downloaded_xml_sat_form" model="ir.ui.view">
+
+        <record id="view_account_edi_downloaded_xml_sat_form" model="ir.ui.view">
             <field name="name">account.edi.downloaded.xml.sat.form</field>
             <field name="model">account.edi.downloaded.xml.sat</field>
             <field name="arch" type="xml">
@@ -49,6 +51,8 @@
                         <button string="Importar Factura" name="action_import_invoice" type="object" class="oe_highlight" attrs="{'invisible': ['|', ('imported', '=', True), ('document_type', '=', 'P')]}"/> 
                         <button string="Adjuntar Complemento" name="action_add_payment" type="object" class="oe_highlight" attrs="{'invisible': [('document_type', '!=', 'P')]}"/> 
                         <button string="Relacionar Manualmente" name="action_wizard_relate"  class="oe_highlight" type="object" attrs="{'invisible': ['|', ('imported', '=', True), ('document_type', '=', 'P')]}"/>
+                        <button string="Ignorar Factura" name="action_ignor" type="object"  attrs="{'invisible': [('state','==','ignored')]}" /> 
+                        <button string="Actualizar Estado SAT" name="action_fetch_sat_status" type="object" attrs="{'invisible': [('state','==','ignored')]}" /> 
                         <field name="state" widget="statusbar" statusbar_visible="not_imported,draft,posted,cancel,ignored,error_relating"/>
                     </header>
                     <sheet>
@@ -63,6 +67,7 @@
                                 <field name="document_type" invisible="1"/> 
                                 <field name="imported" invisible="1"/>
                                 <field name="name" readonly="1"/>
+                                <field name="sat_state" readonly="1"/>
                                 <field name="company_id" readonly="1"/>
                                 <field name="partner_id"/>
                                 <field name="cfdi_type" readonly="1" />
@@ -83,7 +88,6 @@
                                 <field name="total_amount" readonly="1"/>
                             </tree>
                         </field>
-
                         <group>
                             <field name="sub_total" widget='monetary' readonly="1"/>
                             <field name="amount_total"  widget='monetary' readonly="1"/>
@@ -97,14 +101,6 @@
                 </form>
             </field>
         </record>
-
-
-
-
-
-       
-
-
 
         <record id="view_account_edi_api_download_tree" model="ir.ui.view">
             <field name="name">account.edi.api.download.tree</field>
@@ -126,8 +122,9 @@
             <field name="arch" type="xml">
                 <form>
                     <header>
-                        <button name="action_download" string="Importar" class="oe_highlight" type="object" attrs="{'invisible': [('state', '!=', 'not_imported')]}" />             
+                        <button name="action_download" string="Import" class="oe_highlight" type="object" attrs="{'invisible': [('state', '!=', 'not_imported')]}" />             
                         <button name="action_update" string="Actualizar Lote" class="oe_highlight" type="object" attrs="{'invisible': [('state', '==', 'not_imported')]}"/>    
+                        
                         <field name="state" widget="statusbar" statusbar_visible="not_imported,imported,updated,error"/>
                     </header>
                     <sheet>
@@ -146,7 +143,6 @@
                             <group>
                                 <field name="vat" readonly="1"/>
                                 <field name="company_id" options="{'no_open' : True}"/>
-
                                 <field name="cfdi_type" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
                                 
                                 

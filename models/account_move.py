@@ -1,9 +1,9 @@
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError
 import base64
+from lxml.objectify import fromstring
 from lxml import etree
 import xml.etree.ElementTree as ET
-from lxml.objectify import fromstring # type: ignore
 
 USO_CFDI  = [
     ("G01", "Adquisición de mercancías"),
@@ -40,7 +40,6 @@ class AccountMove(models.Model):
         compute='_get_uuid_from_xml_attachment', 
         string="CFDI UUID", 
         store=True, 
-        #default=lambda self: self._get_default_uuid_from_xml_attachment()
         )
     xml_imported_id = fields.Many2one('account.edi.downloaded.xml.sat', string="Downloaded XML")
 
@@ -70,6 +69,23 @@ class AccountMove(models.Model):
                             record.stored_sat_uuid = False
             else: 
                 record.stored_sat_uuid = False
+
+
+    # def _get_default_uuid_from_xml_attachment(self):
+    #     for record in self:
+    #         if not record.stored_sat_uuid:
+    #             attachments = record.attachment_ids.filtered(lambda x: x.mimetype == 'application/xml')
+    #             if attachments:
+    #                 for attachment in attachments:
+    #                     try:
+    #                         xml_content = base64.b64decode(attachment.datas)
+    #                         root = ET.fromstring(xml_content)
+    #                         uuid = root.find('.//{http://www.sat.gob.mx/TimbreFiscalDigital}TimbreFiscalDigital').attrib['UUID']
+    #                         print("UUID: "+str(uuid))
+    #                         break
+    #                         record.stored_sat_uuid = uuid
+    #                     except: 
+    #                         record.stored_sat_uuid = False
 
     @api.constrains('state')
     def onchange_update_downloaded_xml_record(self):
@@ -103,7 +119,6 @@ class AccountMove(models.Model):
                     'attachment_id': edi_content.id,
                 })
         res = self.env['account.edi.document'].create(edi_document_vals_list)
-
 
     # This methos was taken from odoo 16.0 
     def _l10n_mx_edi_decode_cfdi(self, cfdi_data=None):

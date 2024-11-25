@@ -3,7 +3,7 @@
 
 {
     'name': 'XML Masive Download',
-    'version': '15.0.0',
+    'version': '1.0',
     'category': 'Hidden',
     'author':'ANFEPI: Roberto Requejo Fernández',
     'description': """
@@ -15,6 +15,7 @@ XML Masive Download from SAT WebService.
     'data': [
         'security/ir.model.access.csv',
         'security/groups.xml',
+        'data/ir_cron.xml',
         'views/l10n_mx_edi_view.xml',
         'views/res_company_view.xml',
         'views/account_move_view.xml',
@@ -23,9 +24,10 @@ XML Masive Download from SAT WebService.
         'models/server_actions.xml',
         'report/product_report.xml',
         'report/ir_actions_report.xml',
-        'report/reporte_conciliacion_view.xml',
+        #'report/reporte_conciliacion_view.xml',
         'wizard/invoice_wizard_views.xml',
-        'wizard/conciliaton_report_wizard_views.xml',
+        #'wizard/conciliaton_report_wizard_views.xml',
+        'wizard/upload_fiel_wizard.xml'
         
     ],
     'images': ['static/description/icon.png'],
