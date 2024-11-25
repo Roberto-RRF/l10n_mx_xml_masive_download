@@ -1,35 +1,91 @@
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError
 import base64
-from lxml import etree
 from lxml.objectify import fromstring
+from lxml import etree
+import xml.etree.ElementTree as ET
+
+USO_CFDI  = [
+    ("G01", "Adquisición de mercancías"),
+    ("G02", "Devoluciones, descuentos o bonificaciones"),
+    ("G03", "Gastos en general"),
+    ("I01", "Construcciones"),
+    ("101", "Construcciones"),
+    ("I02", "Mobiliario y equipo de oficina por inversiones"),
+    ("I03", "Equipo de transporte"),
+    ("I04", "Equipo de cómputo y accesorios"),    
+    ("105", "Dados, troqueles, moldes, matrices y herramental"),
+    ("106", "Comunicaciones telefónicas"),
+    ("107", "Comunicaciones satelitales"),
+    ("108", "Otra maquinaria y equipo"),
+    ("D01", "Honorarios médicos, dentales y gastos hospitalarios"),
+    ("D02", "Gastos médicos por incapacidad o discapacidad"),
+    ("D03", "Gastos funerales"),
+    ("D04", "Donativos"),
+    ("D05", "Intereses reales efectivamente pagados por créditos hipotecarios (casa habitación)"),
+    ("D06", "Aportaciones voluntarias al SAR"),
+    ("D07", "Primas por seguros de gastos médicos"),
+    ("D08", "Gastos de transportación escolar obligatoria"),
+    ("D09", "Depósitos en cuentas para el ahorro, primas que tengan como base planes de pensiones"),
+    ("D10", "Pagos por servicios educativos (colegiaturas)"),
+    ("CP01", "Pagos"),
+    ("CN01", "Nómina"),
+    ("S01", "Sin Efectos Fiscales"),
+]
 
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
+    stored_sat_uuid = fields.Char(
+        compute='_get_uuid_from_xml_attachment', 
+        string="CFDI UUID", 
+        store=True, 
+        )
     xml_imported_id = fields.Many2one('account.edi.downloaded.xml.sat', string="Downloaded XML")
+
+
+    payment_method = fields.Selection([('PPD','PPD'),('PUE','PUE')], string='Metodo de Pago')
+    uso_sat = fields.Selection(USO_CFDI, string="Uso CFDI")
 
     """
     Method created to have a field that stores the UUID of the CFDI in the account.move model
     To be able to relate the downloaded xml with the invoice
     """
-        
-    # @api.depends('attachment_ids')
-    # def _get_uuid_from_xml_attachment(self):
-    #     for rec in self:
-    #         print("Calculando UUID \n\n\n")
-    #         edi_content = self.env['ir.attachment'].search([('res_model', '=', 'account.move'), 
-    #                                                    ('res_id', '=', rec.id), 
-    #                                                    ], limit=1) # ('name', 'ilike', '.xml')
-    #         print(edi_content)
-    #         if edi_content and rec.stored_sat_uuid != "":
-    #             print(str(edi_content))
-    #             cfdi_node = self._l10n_mx_edi_decode_cfdi(edi_content)
-    #             return cfdi_node.get('uuid')
-    #         else:
-    #             return ""
+    @api.depends('attachment_ids')
+    def _get_uuid_from_xml_attachment(self):
+        for record in self:
+            if not record.stored_sat_uuid:
+                attachments = record.attachment_ids.filtered(lambda x: x.mimetype == 'application/xml')
+                if attachments:
+                    for attatchment in attachments:
+                        try:
+                            xml_content = base64.b64decode(attatchment.datas)
+                            root = ET.fromstring(xml_content)
+                            uuid = root.find('.//{http://www.sat.gob.mx/TimbreFiscalDigital}TimbreFiscalDigital').attrib['UUID']
+                            print("UUID: "+str(uuid))
+                            record.stored_sat_uuid = uuid
+                            break
+                        except: 
+                            record.stored_sat_uuid = False
+            else: 
+                record.stored_sat_uuid = False
 
-    # stored_sat_uuid = fields.Char(compute='_get_uuid_from_xml_attachment', string="CFDI UUID", store=True, index=True)
+
+    # def _get_default_uuid_from_xml_attachment(self):
+    #     for record in self:
+    #         if not record.stored_sat_uuid:
+    #             attachments = record.attachment_ids.filtered(lambda x: x.mimetype == 'application/xml')
+    #             if attachments:
+    #                 for attachment in attachments:
+    #                     try:
+    #                         xml_content = base64.b64decode(attachment.datas)
+    #                         root = ET.fromstring(xml_content)
+    #                         uuid = root.find('.//{http://www.sat.gob.mx/TimbreFiscalDigital}TimbreFiscalDigital').attrib['UUID']
+    #                         print("UUID: "+str(uuid))
+    #                         break
+    #                         record.stored_sat_uuid = uuid
+    #                     except: 
+    #                         record.stored_sat_uuid = False
 
     @api.constrains('state')
     def onchange_update_downloaded_xml_record(self):
@@ -63,7 +119,6 @@ class AccountMove(models.Model):
                     'attachment_id': edi_content.id,
                 })
         res = self.env['account.edi.document'].create(edi_document_vals_list)
-
 
     # This methos was taken from odoo 16.0 
     def _l10n_mx_edi_decode_cfdi(self, cfdi_data=None):

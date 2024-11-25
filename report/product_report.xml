@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 <data>
-   <template id="report_product">
+   <template id="report_product" >
        <t t-call="web.html_container">
            <t t-foreach="docs" t-as="o">
            
@@ -15,14 +15,14 @@
                                     <h4>Receptor:</h4>
                                     <p>Nombre: <span t-field="o.partner_id.name"/></p>
                                     <p>RFC: <span t-field="o.partner_id.vat"/></p>
-                                    <p>Regimen Fiscal: <span t-field="o.partner_id.l10n_mx_edi_fiscal_regime"/></p>
+                                    <p>Regimen Fiscal: <span t-field="o.partner_id.property_account_position_id"/></p>
                                     <p>Uso CFDI: <span t-field="o.cfdi_usage"/></p>
                                 </t>
                                 <t t-if="o.cfdi_type != 'emitidos'">
                                     <h4>Emisor:</h4>
                                     <p>Nombre: <span t-field="o.partner_id.name"/></p>
                                     <p>RFC: <span t-field="o.partner_id.vat"/></p>
-                                    <p>Regimen Fiscal: <span t-field="o.partner_id.l10n_mx_edi_fiscal_regime"/></p>
+                                    <p>Regimen Fiscal: <span t-field="o.partner_id.property_account_position_id"/></p>
                                     <p>Uso CFDI: <span t-field="o.cfdi_usage"/></p>
                                 </t>
                             </div>
@@ -31,13 +31,13 @@
                                     <h4>Emisor:</h4>
                                     <p>Nombre: <span t-field="o.company_id.name"/></p>
                                     <p>RFC: <span t-field="o.company_id.vat"/></p>
-                                    <p>Regimen Fiscal: <span t-field="o.company_id.partner_id.l10n_mx_edi_fiscal_regime"/></p>
+                                    <p>Regimen Fiscal: <span t-field="o.company_id.partner_id.property_account_position_id"/></p>
                                 </t>
                                 <t t-if="o.cfdi_type != 'emitidos'">
                                     <h4>Receptor:</h4>
                                     <p>Nombre: <span t-field="o.company_id.name"/></p>
                                     <p>RFC: <span t-field="o.company_id.vat"/></p>
-                                    <p>Regimen Fiscal: <span t-field="o.company_id.partner_id.l10n_mx_edi_fiscal_regime"/></p>
+                                    <p>Regimen Fiscal: <span t-field="o.company_id.partner_id.property_account_position_id"/></p>
                                 </t>
                             </div>
                         </div>
@@ -52,7 +52,7 @@
                             </div>
                             <div class="col-6">
                                 <p>UUID:   <span t-field="o.name"/></p>       
-                                <p>Fecha de sellado:   <span t-field="o.stamp_date"/></p>
+                                <!-- <p>Fecha de sellado:   <span t-field="o.stamp_date"/></p> -->
                                 <p>Tipo de comprobante:   <span t-field="o.document_type"/></p>
                             </div>
                         </div>
@@ -63,12 +63,12 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Descripcion</th>
-                                    <th>Clave Sat</th>
-                                    <th>Cantidad Unidad</th>
-                                    <th>Valor Unitario</th>
-                                    <th>Importe</th>
-                                    <th>Impuestos y Retenciones</th>
+                                    <th style="width:30%">Descripcion</th>
+                                    <th style="width:14%">Clave Sat</th>
+                                    <th style="width:14%">Cantidad Unidad</th>
+                                    <th style="width:14%">Valor Unitario</th>
+                                    <th style="width:14%">Importe</th>
+                                    <th style="width:14%">Impuestos y Retenciones</th>
                                     
                                 </tr>
                             </thead>
@@ -78,7 +78,7 @@
                                     <t t-set="product_metrics" t-value="line.product_metrics"/>
 
                                     <tr>
-                                        <td><t t-esc="line.description"/></td>
+                                        <td style="p-2"><t t-esc="line.description" /></td>
                                         <td><t t-esc="line.sat_id"/></td>
                                         <td><span><t t-esc="quantity"/> <t t-esc="product_metrics"/></span></td>
                                         <td><t t-esc="'{:,}'.format(line.unit_value)"/></td>

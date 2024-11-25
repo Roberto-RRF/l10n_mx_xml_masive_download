@@ -6,74 +6,101 @@
             <field name="model">account.edi.downloaded.xml.sat</field>
             <field name="arch" type="xml">
                 <tree string="XML SAT" create="0">
-                    <field name="name"/>
-                    <field name="company_id" />                    
-                    <field name="partner_id"/>
-                    <field name="invoice_id"/>
-                    <field name="payment_method"/>
-                    <field name="cfdi_type"/>
-                    <field name="document_type"/>
-                    <field name="state"/>
-                    <field name="stamp_date"/>
-                    <field name="sub_total"/>
-                    <field name="amount_total"/>
+                    <field name="name" optional="show"/>
+                    <field name="company_id" optional="show"/>                    
+                    <field name="partner_id" optional="show"/>
+                    <field name="tax_regime" optional="show"/>
+                    <field name="invoice_id" optional="show"/>
+                    <field name="payment_method" optional="show"/>
+                    <field name="payment_method_sat" optional="show"/>
+                    <field name="cfdi_type" optional="show"/>
+                    <field name="cfdi_usage" optional="show"/>
+                    <field name="document_type" optional="show"/>
+                    <field name="state" optional="show" />  
+                    <field name="document_date" optional="show"/>
+                    <field name="sub_total" optional="show"/>
+                    <field name="amount_total" optional="show"/>
+                    <field name="sat_state" optional="show" />
                 </tree>
 
             </field>
         </record>
 
+        <record id="view_account_edi_downloaded_xml_sat_tree_search" model="ir.ui.view">
+            <field name="name">account.edi.downloaded.xml.sat.view.search</field>
+            <field name="model">account.edi.downloaded.xml.sat</field> 
+            <field name="arch" type="xml">
+                <search>
+                    <filter string="Con Forma de Pago PUE" name="PUE" domain="[('payment_method','=','PUE')]"/>
+                    <filter string="Con Forma de Pago PPD" name="PPD" domain="[('payment_method','=','PPD')]"/>
+                    <filter string="Uso de CFDI sin Efectos Fiscales" name="usoCfdi" domain="[('cfdi_usage','=','S01')]"/>
+                    <group expand="0" string="Group By">
+                        <filter string="Regimen Fiscal Partner" name="fiscal_regime" context="{'group_by': 'tax_regime'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
 
-       <record id="view_account_edi_downloaded_xml_sat_form" model="ir.ui.view">
+
+        <record id="view_account_edi_downloaded_xml_sat_form" model="ir.ui.view">
             <field name="name">account.edi.downloaded.xml.sat.form</field>
             <field name="model">account.edi.downloaded.xml.sat</field>
             <field name="arch" type="xml">
                 <form string="XML SAT" create="0">
                     <header>
                         <button string="Importar Factura" name="action_import_invoice" type="object" class="oe_highlight" attrs="{'invisible': ['|', ('imported', '=', True), ('document_type', '=', 'P')]}"/> 
-                        <button string="Adjuntar Complemento" name="action_add_payment" type="object" class="oe_highlight" attrs="{'invisible': [('document_type', '!=', 'P')]}"/>"
-                        <field name="state" widget="statusbar" statusbar_visible="not_imported,draft,posted,cancel,error_relating"/>
+                        <button string="Adjuntar Complemento" name="action_add_payment" type="object" class="oe_highlight" attrs="{'invisible': [('document_type', '!=', 'P')]}"/> 
+                        <button string="Relacionar Manualmente" name="action_wizard_relate"  class="oe_highlight" type="object" attrs="{'invisible': ['|', ('imported', '=', True), ('document_type', '=', 'P')]}"/>
+                        <button string="Ignorar Factura" name="action_ignor" type="object"  attrs="{'invisible': [('state','==','ignored')]}" /> 
+                        <button string="Actualizar Estado SAT" name="action_fetch_sat_status" type="object" attrs="{'invisible': [('state','==','ignored')]}" /> 
+                        <field name="state" widget="statusbar" statusbar_visible="not_imported,draft,posted,cancel,ignored,error_relating"/>
                     </header>
                     <sheet>
+                        <div class="oe_button_box" name="button_box">
+                             <!-- attrs="{'invisible': [('invoice_id', '!=', True)]}" -->
+                            <button class="oe_stat_button" type="object" name="view_invoice" icon="fa-pencil-square-o" attrs="{'invisible': [('invoice_id', '==', False)]}">
+                                <field name="invoice_id" widget="statinfo" string="XML"/>
+                            </button>
+                        </div>
                         <group>
                             <group>
                                 <field name="document_type" invisible="1"/> 
                                 <field name="imported" invisible="1"/>
                                 <field name="name" readonly="1"/>
+                                <field name="sat_state" readonly="1"/>
                                 <field name="company_id" readonly="1"/>
                                 <field name="partner_id"/>
-                                <field name="invoice_id" readonly="1"/>
-                                <field name="xml_file" filename="xml_file_name" readonly="1" />
-                                <field name="xml_file_name" invisible="1"/>
                                 <field name="cfdi_type" readonly="1" />
-                                <field name="stamp_date" readonly="1"/>
+                                <field name="document_date" readonly="1"/>
+                                <field name="discount" readonly="1" attrs="{'invisible': [('discount', '!=', True)]}" />
                             </group>
                         </group>
 
-                        <field name="downloaded_product_id" >
-
+                        <field name="downloaded_product_id">
                             <tree string="Products" editable="bottom" delete="0">
-                                <field name="product_rel"/>
+                                <field name="product_rel"  attrs="{'column_invisible': [('parent.document_type', '==', 'P')]}" />
                                 <field name="sat_id" readonly="1"/>
                                 <field name="description" readonly="1"/>
-                                <field name="tax_id" readonly="1" widget="many2many_tags"/>
+                                <field name="tax_id" readonly="1" widget="many2many_tags"  attrs="{'column_invisible': [('parent.document_type', '==', 'P')]}" />
                                 <field name="quantity" readonly="1"/>
-                                <field name="unit_value" readonly="1"/>
+                                <field name="unit_value" readonly="1"  attrs="{'column_invisible': [('parent.document_type', '==', 'P')]}" />
+                                <field name="discount" readonly="1"  attrs="{'column_invisible': [('parent.document_type', '==', 'P')]}" />
                                 <field name="total_amount" readonly="1"/>
                             </tree>
                         </field>
+                        <group>
+                            <field name="sub_total" widget='monetary' readonly="1"/>
+                            <field name="amount_total"  widget='monetary' readonly="1"/>
+                        </group>
 
                     </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids" groups="base.group_user"/>
+                        <field name="message_ids"/>
+                    </div>
                 </form>
             </field>
         </record>
-
-
-
-
-
-       
-
-
 
         <record id="view_account_edi_api_download_tree" model="ir.ui.view">
             <field name="name">account.edi.api.download.tree</field>
@@ -95,8 +122,10 @@
             <field name="arch" type="xml">
                 <form>
                     <header>
-                        <button name="action_download" string="Import" class="oe_highlight" type="object" attrs="{'invisible':[('state','!=','not_imported')]}"/>             
-                        <field name="state" widget="statusbar" statusbar_visible="not_imported,imported,error"/>
+                        <button name="action_download" string="Import" class="oe_highlight" type="object" attrs="{'invisible': [('state', '!=', 'not_imported')]}" />             
+                        <button name="action_update" string="Actualizar Lote" class="oe_highlight" type="object" attrs="{'invisible': [('state', '==', 'not_imported')]}"/>    
+                        
+                        <field name="state" widget="statusbar" statusbar_visible="not_imported,imported,updated,error"/>
                     </header>
                     <sheet>
                         <div name="button_box" position="inside">
@@ -105,12 +134,35 @@
                         </button>
                         </div>
                         <h1>Descargar XMLs del SAT</h1>
-                        <group >
-                                <field name="vat" attrs="{'readonly':[('state','!=','not_imported')]}"/>
+                        <group>
+                            <field name="last_update_date" readonly="1" />
+                        </group>
+
+                        <separator string="Filtros de descarga" colspan="2"/>
+                        <group col="2">
+                            <group>
+                                <field name="vat" readonly="1"/>
                                 <field name="company_id" options="{'no_open' : True}"/>
-                                <field name="cfdi_type" attrs="{'readonly':[('state','!=','not_imported')]}"/>
-                                <field name="date_start" attrs="{'readonly':[('state','!=','not_imported')]}"/>
-                                <field name="date_end" attrs="{'readonly':[('state','!=','not_imported')]}"/>
+                                <field name="cfdi_type" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                
+                                
+                          
+                                <field name="date_start" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="date_end" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                           
+                            </group>
+                            <group>
+                                <separator string="Tipo de documento" colspan="2"/>
+                                <field name="ingreso" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="egreso" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="pago" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="nomina" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="traslado" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <separator string="Estatus SAT" colspan="2"/>
+                                <field name="cancelado" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="valido" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                                <field name="no_encontrado" attrs="{'readonly': [('state', '!=', 'not_imported')]}"/>
+                            </group>  
                         </group>
                     </sheet>
                 </form>
@@ -123,14 +175,25 @@
             <field name="view_mode">tree,form</field>
             <field name="target">current</field>
         </record>
-        <menuitem id="account_edi_api_download_menu" parent="account.menu_finance_entries_actions" action="account_edi_api_download_action" sequence="1" name="Download XML from SAT"/>
+        <menuitem id="account_edi_api_download_menu" 
+            parent="account.menu_finance_entries_actions" 
+            action="account_edi_api_download_action" 
+            sequence="1" name="Importar XMLs del SAT" 
+            groups="l10n_mx_xml_masive_download.group_access_xml_sat_user"
+            />
         
         <record id="account_edi_download_xml_sat_view_action" model="ir.actions.act_window">
             <field name="name">XMLs Descargados del SAT</field>
             <field name="res_model">account.edi.downloaded.xml.sat</field>
             <field name="view_mode">tree,form</field>
         </record>
-        <menuitem id="account_edi_download_xml_sat_view_menu" parent="account.menu_finance_entries_actions" action="account_edi_download_xml_sat_view_action" name="XML SAT"/>
+        <menuitem id="account_edi_download_xml_sat_view_menu" 
+            parent="account.menu_finance_entries_actions" 
+            action="account_edi_download_xml_sat_view_action" 
+            name="XML SAT" 
+            groups="l10n_mx_xml_masive_download.group_access_xml_sat_user"
+        />
 
+        
     </data>
 </odoo>
