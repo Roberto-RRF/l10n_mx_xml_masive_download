@@ -67,4 +67,3 @@ class UploadFileWizard(models.TransientModel):
             return {'type': 'ir.actions.act_window_close'}
         else:
             raise UserError("Error al subir la información, verifique que este correcta ")
-

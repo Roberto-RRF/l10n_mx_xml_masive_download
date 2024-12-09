@@ -12,7 +12,7 @@ from odoo.addons.l10n_mx_edi.models.l10n_mx_edi_document import ( # type: ignore
 from io import BytesIO
 import xml.etree.ElementTree as ET
 from difflib import SequenceMatcher 
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 
 USO_CFDI  = [
     ("G01", "Adquisición de mercancías"),
@@ -396,20 +396,15 @@ class DownloadedXmlSat(models.Model):
             self._fetch_sat_status(self.partner_id.vat, self.company_id.vat, self.amount_total, self.name)
 
     def cron_fetch_sat_status(self):
-        # Calculate the start and end dates for the 31-day range
-        start_date = date.today() - timedelta(days=31)
-        end_date = date.today()
-
-        # Convert the dates to string format (YYYY-MM-DD)
-        start_date_str = fields.Date.to_string(start_date)
-        end_date_str = fields.Date.to_string(end_date)
-        print("\n\n\n")
-        print(start_date_str)
-        print(end_date_str)
-
-        # Modify the search domain to exclude 'Cancelado' and limit to the last 31 days
+        # Calculate the date range for the last 31 days
+        today = datetime.now()
+        last_31_days = today - timedelta(days=31)
+        
+        # Modify the search domain to dynamically filter records from the last 31 days
         records = self.env['account.edi.downloaded.xml.sat'].search([
             ('sat_state', '!=', 'Cancelado'),
+            ('document_date', '>=', last_31_days.strftime('%Y-%m-%d')),
+            ('document_date', '<=', today.strftime('%Y-%m-%d'))
         ])
         for record in records:
             if self.cfdi_type == 'emitidos':

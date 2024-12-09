@@ -96,7 +96,7 @@
                             </tree>
                         </field>
                         <field name="downloaded_product_id" invisible="document_type != 'P'">
-                            <tree string="Products" editable="bottom" delete="0">
+                            <tree string="Products" create="0" >
                                 <field name="sat_id" readonly="1"/>
 
                                 <field name="description" readonly="1"/>
